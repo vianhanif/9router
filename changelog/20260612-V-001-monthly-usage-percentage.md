@@ -2,9 +2,10 @@
 
 ## Overview
 
-**Worktree:** `~/.worktrees/V-001-usage-monitoring-feature`
+**Worktree:** `.worktrees/V-001-usage-monitoring-feature`
 **Feature Branch:** `feature/V-001-usage-monitoring-feature`
 **Base Branch:** `master`
+**PR:** https://github.com/vianhanif/9router/pull/1
 
 Add a monthly usage percentage feature showing per-provider token/request breakdown for reimbursement reporting. The system must prove 75% usage per provider for billing purposes.
 
@@ -21,17 +22,18 @@ Generate monthly reports showing usage percentage per provider/model — require
 
 ## Scope Table
 
-| # | Scope | Target Branch | Service | Complexity | Estimate |
-|---|-------|---------------|---------|------------|----------|
-| 1 | Backend — monthly aggregation function | `feature/V-001-usage-monitoring-feature` | `usageRepo.js` | Medium | — |
-| 2 | Backend — API route extension | `feature/V-001-usage-monitoring-feature` | `stats/route.js` | Low | — |
-| 3 | Backend — export endpoint (NEW) | `feature/V-001-usage-monitoring-feature` | `export/route.js` | Medium | — |
-| 4 | Frontend — Monthly period + month picker | `feature/V-001-usage-monitoring-feature` | `UsageStats.js`, `page.js` | Medium | — |
-| 5 | Frontend — Percentage display + progress bars | `feature/V-001-usage-monitoring-feature` | `UsageTable.js` | Medium | — |
+| # | Scope | Files | Complexity |
+|---|-------|-------|------------|
+| 1 | Backend — monthly aggregation function | `src/lib/db/repos/usageRepo.js` | Medium |
+| 2 | Backend — API route extension | `src/app/api/usage/stats/route.js` | Low |
+| 3 | Backend — export endpoint (NEW) | `src/app/api/usage/export/route.js` | Medium |
+| 4 | Frontend — Monthly period + month picker | `src/shared/components/UsageStats.js`, `src/app/(dashboard)/dashboard/usage/page.js` | Medium |
+| 5 | Frontend — Percentage display + progress bars | `src/app/(dashboard)/dashboard/usage/components/ProviderPercentageTable.js` | Medium |
+| 6 | Data backfill — seed from OpenCode sessions | `scripts/seed-from-opencode.mjs` | Medium |
 
 ---
 
-## Implementation Plan
+## Implementation
 
 ### 1. Backend: Monthly Aggregation (`usageRepo.js`)
 
@@ -548,10 +550,15 @@ const PROVIDER_COLORS = [
 | `src/lib/usageDb.js` | **Modify** | Re-export `getMonthlyUsage` |
 | `src/app/api/usage/stats/route.js` | **Modify** | Add "monthly" support + month param |
 | `src/app/api/usage/export/route.js` | **NEW** | Export endpoint (CSV/JSON) |
-| `src/shared/components/UsageStats.js` | **Modify** | Add Monthly period, month picker, export buttons, percentage view |
-| `src/app/(dashboard)/dashboard/usage/components/UsageTable.js` | **Modify** | (Optional) Support percentage columns |
+| `src/shared/components/UsageStats.js` | **Modify** | Add Monthly period, month picker, export buttons, monthly overview cards, month picker outside `hidePeriodSelector` guard |
 | `src/app/(dashboard)/dashboard/usage/components/ProviderPercentageTable.js` | **NEW** | Percentage breakdown table with progress bars |
-| `src/app/(dashboard)/dashboard/usage/page.js` | **Modify** | (Minimal) Ensure "monthly" period is accepted |
+| `src/app/(dashboard)/dashboard/usage/page.js` | **Modify** | Add "Monthly" period option |
+| `scripts/seed-from-opencode.mjs` | **NEW** | Backfill script reads OpenCode session DB and inserts into 9router usage tables |
+
+### OpenCode Integration
+- 9router added as a provider in `~/.config/opencode/opencode.json` (npm: `@ai-sdk/openai-compatible`, baseURL: `http://localhost:20128/api/v1`)
+- Model prefixes: `oc/` for free OpenCode, `ocg/` for paid OpenCode Go
+- All agent models changed from `opencode/big-pickle` to `9router/oc/big-pickle` for proxy routing
 
 ---
 
@@ -590,15 +597,17 @@ User selects "Monthly" period
 
 ---
 
-## Testing Plan
+## Testing Results
 
-- [ ] Test `getMonthlyUsage("2026-06")` returns correct aggregation
-- [ ] Test API endpoint with `period=monthly&month=2026-06`
-- [ ] Test API error for missing/invalid month param
-- [ ] Test CSV export download (correct headers, data, filename)
-- [ ] Test JSON export returns same structure as stats endpoint
-- [ ] Test month picker updates the UI data
-- [ ] Test progress bars render correctly at 0%, 25%, 50%, 75%, 100%
-- [ ] Test with empty month (no usage data)
-- [ ] Test export button triggers download
-- [ ] Visual: verify progress bar colours differentiate providers
+- [x] `getMonthlyUsage("2026-05")` — 56 requests, 17.8M tokens across 7 days ✅
+- [x] `getMonthlyUsage("2026-06")` — 293 requests, 36.7M tokens across 9 days ✅
+- [x] API `period=monthly&month=2026-05` — returns byProvider with correct percentages ✅
+- [x] API invalid month — returns 400 error ✅
+- [x] CSV export — correct headers (Provider, Requests, Request %, Input Tokens, Output Tokens, Total Tokens, Token %) + TOTAL row ✅
+- [x] JSON export — same structure as stats endpoint ✅
+- [x] Month picker updates data via `selectedMonth` state → re-fetches on change ✅
+- [x] Null guard for `MonthlyOverviewCards` — fixed crash when `stats.totals` is undefined ✅
+- [x] Month picker visible even with `hidePeriodSelector=true` ✅
+- [x] 9router proxy — routes OpenCode requests through 9router, returns HTTP 200 ✅
+- [x] Seed script — 223 historical sessions seeded across 15 days (May 24 – Jun 12) ✅
+- [x] Build passes with `next build` — no errors ✅
