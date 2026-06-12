@@ -16,6 +16,7 @@ import OverviewCards from "@/app/(dashboard)/dashboard/usage/components/Overview
 import UsageTable, { fmt, fmtTime } from "@/app/(dashboard)/dashboard/usage/components/UsageTable";
 import ProviderTopology from "@/app/(dashboard)/dashboard/usage/components/ProviderTopology";
 import UsageChart from "@/app/(dashboard)/dashboard/usage/components/UsageChart";
+import ProviderPercentageTable from "@/app/(dashboard)/dashboard/usage/components/ProviderPercentageTable";
 
 function timeAgo(timestamp) {
   const diff = Math.floor((Date.now() - new Date(timestamp)) / 1000);
@@ -81,6 +82,45 @@ function RecentRequests({ requests = [] }) {
         </div>
       )}
     </Card>
+  );
+}
+
+function MonthlyOverviewCards({ stats }) {
+  // Sort providers by token percentage descending
+  const sorted = Object.entries(stats.byProvider || {})
+    .sort(([, a], [, b]) => b.tokenPercentage - a.tokenPercentage);
+
+  const topProvider = sorted[0];
+
+  return (
+    <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 sm:gap-4">
+      {/* Total requests card */}
+      <Card className="flex min-w-0 flex-col gap-1 px-4 py-3">
+        <span className="text-text-muted text-sm uppercase font-semibold">Total Requests</span>
+        <span className="truncate text-2xl font-bold">{fmt(stats.totals.requests)}</span>
+      </Card>
+
+      {/* Total tokens card */}
+      <Card className="flex min-w-0 flex-col gap-1 px-4 py-3">
+        <span className="text-text-muted text-sm uppercase font-semibold">Total Tokens</span>
+        <span className="truncate text-2xl font-bold">{fmt(stats.totals.totalTokens)}</span>
+      </Card>
+
+      {/* Top provider card */}
+      <Card className="flex min-w-0 flex-col gap-1 px-4 py-3">
+        <span className="text-text-muted text-sm uppercase font-semibold">Top Provider</span>
+        <span className="truncate text-2xl font-bold">{topProvider?.[0] || "—"}</span>
+        <span className="text-xs text-text-muted">
+          {topProvider?.[1]?.tokenPercentage?.toFixed(1) || "0"}% of tokens
+        </span>
+      </Card>
+
+      {/* Days with data card */}
+      <Card className="flex min-w-0 flex-col gap-1 px-4 py-3">
+        <span className="text-text-muted text-sm uppercase font-semibold">Days Active</span>
+        <span className="truncate text-2xl font-bold">{stats.days}</span>
+      </Card>
+    </div>
   );
 }
 
@@ -187,6 +227,7 @@ const PERIODS = [
   { value: "7d", label: "7D" },
   { value: "30d", label: "30D" },
   { value: "60d", label: "60D" },
+  { value: "monthly", label: "Monthly" },
 ];
 
 export default function UsageStats({ period: periodProp, setPeriod: setPeriodProp, hidePeriodSelector = false } = {}) {
@@ -203,9 +244,35 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
   const [viewMode, setViewMode] = useState("costs");
   const [providers, setProviders] = useState([]);
   const [periodLocal, setPeriodLocal] = useState("today");
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [exporting, setExporting] = useState(false);
   const isInitialLoad = useRef(true);
   const period = periodProp ?? periodLocal;
   const setPeriod = setPeriodProp ?? setPeriodLocal;
+
+  async function handleExport(format) {
+    setExporting(true);
+    try {
+      const res = await fetch(`/api/usage/export?period=monthly&month=${selectedMonth}&format=${format}`);
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `usage-report-${selectedMonth}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("Export error:", e);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   // Fetch connected providers once, deduplicate by provider type
   // Always include noAuth free providers (e.g. opencode) regardless of connections
@@ -229,7 +296,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       .catch(() => {});
   }, []);
 
-  // Fetch filtered stats via REST when period changes
+  // Fetch filtered stats via REST when period or selectedMonth changes
   useEffect(() => {
     // First load: show full spinner; subsequent: show subtle fetching indicator
     if (isInitialLoad.current) {
@@ -239,7 +306,12 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       setFetching(true);
     }
 
-    fetch(`/api/usage/stats?period=${period}`)
+    let url = `/api/usage/stats?period=${period}`;
+    if (period === "monthly") {
+      url += `&month=${selectedMonth}`;
+    }
+
+    fetch(url)
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (data) setStats((prev) => ({ ...prev, ...data }));
@@ -249,7 +321,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
         setLoading(false);
         setFetching(false);
       });
-  }, [period]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [period, selectedMonth]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // SSE connection - real-time updates for activeRequests + recentRequests only
   useEffect(() => {
@@ -417,8 +489,8 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
     <div className="flex min-w-0 flex-col gap-6">
       {/* Period selector (hidden when controlled by parent) */}
       {!hidePeriodSelector && (
-        <div className="flex w-full items-center gap-2 sm:w-auto sm:self-end">
-          <div className="grid flex-1 grid-cols-5 items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1 sm:flex sm:flex-none">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:self-end">
+          <div className="grid flex-1 grid-cols-3 items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1 sm:flex sm:flex-none sm:grid-cols-none">
             {PERIODS.map((p) => (
               <button
                 key={p.value}
@@ -430,14 +502,42 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               </button>
             ))}
           </div>
+          {period === "monthly" && (
+            <div className="flex items-center gap-2">
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50"
+                style={{ colorScheme: 'auto' }}
+              />
+              <button
+                onClick={() => handleExport("csv")}
+                disabled={exporting}
+                className="rounded-md px-3 py-1.5 text-sm font-medium bg-surface border border-border hover:bg-bg-hover transition-colors disabled:opacity-50"
+              >
+                {exporting ? "Exporting..." : "Export CSV"}
+              </button>
+              <button
+                onClick={() => handleExport("json")}
+                disabled={exporting}
+                className="rounded-md px-3 py-1.5 text-sm font-medium bg-surface border border-border hover:bg-bg-hover transition-colors disabled:opacity-50"
+              >
+                {exporting ? "Exporting..." : "Export JSON"}
+              </button>
+            </div>
+          )}
           {fetching && (
             <span className="material-symbols-outlined text-[16px] text-text-muted animate-spin">progress_activity</span>
           )}
         </div>
       )}
 
-      {/* Overview cards */}
-      {loading ? spinner : <OverviewCards stats={stats} />}
+      {/* Overview cards - monthly vs standard */}
+      {loading ? spinner : period === "monthly"
+        ? <MonthlyOverviewCards stats={stats} />
+        : <OverviewCards stats={stats} />
+      }
 
       {/* Provider topology + Recent Requests */}
       {loading ? spinner : (
@@ -452,23 +552,25 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
         </div>
       )}
 
-      {/* Token / Cost chart - sync period */}
-      {loading ? spinner : <UsageChart period={period} />}
+      {/* Token / Cost chart - sync period (hidden for monthly) */}
+      {loading ? null : period !== "monthly" && <UsageChart period={period} />}
 
       {/* Table with dropdown selector */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <select
-            value={tableView}
-            onChange={(e) => setTableView(e.target.value)}
-            className="w-full rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text-main focus:outline-none focus:ring-2 focus:ring-primary/50 sm:w-auto"
-            style={{ colorScheme: 'auto' }}
-          >
-            {TABLE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-          <div className="grid grid-cols-2 items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1 sm:flex">
+          {viewMode !== "percentage" && (
+            <select
+              value={tableView}
+              onChange={(e) => setTableView(e.target.value)}
+              className="w-full rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text-main focus:outline-none focus:ring-2 focus:ring-primary/50 sm:w-auto"
+              style={{ colorScheme: 'auto' }}
+            >
+              {TABLE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          )}
+          <div className={`grid items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1 sm:flex ${period === "monthly" ? "grid-cols-3" : "grid-cols-2"}`}>
             <button
               onClick={() => setViewMode("costs")}
               className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === "costs" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
@@ -481,9 +583,22 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
             >
               Tokens
             </button>
+            {period === "monthly" && (
+              <button
+                onClick={() => setViewMode("percentage")}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === "percentage" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
+              >
+                Percentage
+              </button>
+            )}
           </div>
         </div>
-        {loading ? spinner : activeTableConfig && (
+        {loading ? spinner : viewMode === "percentage" && period === "monthly" ? (
+          <ProviderPercentageTable
+            byProvider={stats?.byProvider}
+            totals={stats?.totals}
+          />
+        ) : (activeTableConfig && (
           <UsageTable
             title=""
             columns={activeTableConfig.columns}
@@ -498,7 +613,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
             renderDetailCells={activeTableConfig.renderDetailCells}
             emptyMessage={activeTableConfig.emptyMessage}
           />
-        )}
+        ))}
       </div>
     </div>
   );
