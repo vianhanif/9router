@@ -521,10 +521,37 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               </button>
             ))}
           </div>
+          {period === "monthly" && (
+            <div className="flex items-center gap-2">
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50"
+                style={{ colorScheme: 'auto' }}
+              />
+              <button
+                onClick={() => handleExport("csv")}
+                disabled={exporting}
+                className="rounded-md px-3 py-1.5 text-sm font-medium bg-surface border border-border hover:bg-bg-hover transition-colors disabled:opacity-50"
+              >
+                {exporting ? "Exporting..." : "Export CSV"}
+              </button>
+              <button
+                onClick={() => handleExport("json")}
+                disabled={exporting}
+                className="rounded-md px-3 py-1.5 text-sm font-medium bg-surface border border-border hover:bg-bg-hover transition-colors disabled:opacity-50"
+              >
+                {exporting ? "Exporting..." : "Export JSON"}
+              </button>
+            </div>
+          )}
           {fetching && (
             <span className="material-symbols-outlined text-[16px] text-text-muted animate-spin">progress_activity</span>
           )}
         </div>
+      )}
+
       )}
 
       {/* Month picker + export — always visible when Monthly is selected, even with hidePeriodSelector */}
