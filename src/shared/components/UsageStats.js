@@ -86,6 +86,8 @@ function RecentRequests({ requests = [] }) {
 }
 
 function MonthlyOverviewCards({ stats }) {
+  if (!stats?.totals) return null;
+
   // Sort providers by token percentage descending
   const sorted = Object.entries(stats.byProvider || {})
     .sort(([, a], [, b]) => b.tokenPercentage - a.tokenPercentage);
@@ -118,7 +120,7 @@ function MonthlyOverviewCards({ stats }) {
       {/* Days with data card */}
       <Card className="flex min-w-0 flex-col gap-1 px-4 py-3">
         <span className="text-text-muted text-sm uppercase font-semibold">Days Active</span>
-        <span className="truncate text-2xl font-bold">{stats.days}</span>
+        <span className="truncate text-2xl font-bold">{stats.days ?? "—"}</span>
       </Card>
     </div>
   );
