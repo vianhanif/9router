@@ -76,3 +76,4 @@ gitbook/README.md
 .worktrees/
 # Refactor backup reference (do not bundle/lint)
 open-sse.old/
+.worktrees/
