@@ -617,6 +617,78 @@ export async function getUsageStats(period = "all") {
   return stats;
 }
 
+export async function getMonthlyUsage(yearMonth) {
+  // yearMonth format: "2026-06"
+  const db = await getAdapter();
+
+  // Load all usageDaily rows for the given month
+  const dayRows = db.all(
+    `SELECT dateKey, data FROM usageDaily WHERE dateKey LIKE ?`,
+    [`${yearMonth}-%`]
+  );
+
+  // Aggregate per-provider
+  const byProvider = {};
+  let totals = { requests: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+
+  for (const dr of dayRows) {
+    const day = parseJson(dr.data, {});
+    for (const [prov, p] of Object.entries(day.byProvider || {})) {
+      if (!byProvider[prov]) {
+        byProvider[prov] = { requests: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+      }
+      byProvider[prov].requests += p.requests || 0;
+      byProvider[prov].promptTokens += p.promptTokens || 0;
+      byProvider[prov].completionTokens += p.completionTokens || 0;
+    }
+  }
+
+  // Compute totals
+  totals.requests = Object.values(byProvider).reduce((s, p) => s + p.requests, 0);
+  totals.promptTokens = Object.values(byProvider).reduce((s, p) => s + p.promptTokens, 0);
+  totals.completionTokens = Object.values(byProvider).reduce((s, p) => s + p.completionTokens, 0);
+  totals.totalTokens = totals.promptTokens + totals.completionTokens;
+
+  // Compute percentages
+  for (const prov of Object.keys(byProvider)) {
+    const p = byProvider[prov];
+    p.totalTokens = p.promptTokens + p.completionTokens;
+    p.requestPercentage = totals.requests > 0 ? (p.requests / totals.requests) * 100 : 0;
+    p.tokenPercentage = totals.totalTokens > 0 ? (p.totalTokens / totals.totalTokens) * 100 : 0;
+  }
+
+  // Also aggregate byModel for detail view
+  const byModel = {};
+  for (const dr of dayRows) {
+    const day = parseJson(dr.data, {});
+    for (const [mk, m] of Object.entries(day.byModel || {})) {
+      const rawModel = m.rawModel || mk.split("|")[0];
+      const provider = m.provider || mk.split("|")[1] || "";
+      const modelKey = provider ? `${rawModel} (${provider})` : rawModel;
+      if (!byModel[modelKey]) {
+        byModel[modelKey] = { requests: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, rawModel, provider };
+      }
+      byModel[modelKey].requests += m.requests || 0;
+      byModel[modelKey].promptTokens += m.promptTokens || 0;
+      byModel[modelKey].completionTokens += m.completionTokens || 0;
+    }
+  }
+  for (const mk of Object.keys(byModel)) {
+    const m = byModel[mk];
+    m.totalTokens = m.promptTokens + m.completionTokens;
+    m.requestPercentage = totals.requests > 0 ? (m.requests / totals.requests) * 100 : 0;
+    m.tokenPercentage = totals.totalTokens > 0 ? (m.totalTokens / totals.totalTokens) * 100 : 0;
+  }
+
+  return {
+    month: yearMonth,
+    byProvider,
+    byModel,
+    totals,
+    days: dayRows.length,
+  };
+}
+
 export async function getChartData(period = "7d") {
   const db = await getAdapter();
   const now = Date.now();
