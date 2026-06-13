@@ -2,6 +2,8 @@ import { EventEmitter } from "events";
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
 import { getMeta, setMeta } from "../helpers/metaStore.js";
+import fs from "node:fs";
+import { DATA_FILE } from "../paths.js";
 
 const PENDING_TIMEOUT_MS = 60 * 1000;
 const RING_CAP = 50;
@@ -800,4 +802,55 @@ export async function getRecentLogs(limit = 200) {
     console.error("[usageRepo] getRecentLogs failed:", e.message);
     return [];
   }
+}
+
+// ── Data Management ──────────────────────────────────────────────────────────
+
+export async function getDataSummary() {
+  const db = await getAdapter();
+
+  const totalRequests = (db.get(`SELECT COUNT(*) as c FROM usageHistory`)?.c) || 0;
+  const totalTokens = (db.get(`SELECT COALESCE(SUM(promptTokens), 0) + COALESCE(SUM(completionTokens), 0) as t FROM usageHistory`)?.t) || 0;
+
+  const monthRows = db.all(`SELECT DISTINCT substr(timestamp, 1, 7) as ym FROM usageHistory ORDER BY ym`);
+  const totalMonths = monthRows.length;
+
+  const oldestRow = db.get(`SELECT MIN(timestamp) as ts FROM usageHistory`);
+  const newestRow = db.get(`SELECT MAX(timestamp) as ts FROM usageHistory`);
+
+  let dbFileSize = null;
+  try { dbFileSize = fs.statSync(DATA_FILE)?.size ?? null; } catch {}
+
+  return { totalMonths, totalRequests, totalTokens, dbFileSize, oldestDate: oldestRow?.ts || null, newestDate: newestRow?.ts || null };
+}
+
+export async function getOldestRecordDate() {
+  const db = await getAdapter();
+  const row = db.get(`SELECT MIN(timestamp) as ts FROM usageHistory`);
+  return row?.ts || null;
+}
+
+export async function getDeletePreview(cutoffDate) {
+  const db = await getAdapter();
+  const historyCount = (db.get(`SELECT COUNT(*) as c FROM usageHistory WHERE timestamp < ?`, [cutoffDate])?.c) || 0;
+  const minRow = db.get(`SELECT MIN(timestamp) as min FROM usageHistory WHERE timestamp < ?`, [cutoffDate]);
+  const maxRow = db.get(`SELECT MAX(timestamp) as max FROM usageHistory WHERE timestamp < ?`, [cutoffDate]);
+  return {
+    historyCount,
+    dateRange: { from: minRow?.min || null, to: maxRow?.max || null },
+  };
+}
+
+export async function deleteUsageData(cutoffDate, cutoffDateKey) {
+  const db = await getAdapter();
+  let deletedCount = 0;
+
+  db.transaction(() => {
+    const result = db.run(`DELETE FROM usageHistory WHERE timestamp < ?`, [cutoffDate]);
+    deletedCount = result.changes || 0;
+    db.run(`DELETE FROM usageDaily WHERE dateKey < ?`, [cutoffDateKey]);
+    db.run(`DELETE FROM requestDetails WHERE timestamp < ?`, [cutoffDate]);
+  });
+
+  return deletedCount;
 }
