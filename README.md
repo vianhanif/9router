@@ -1,4 +1,4 @@
-# 9Router — vianhanif fork
+# 9Router — personal fork
 
 Fork of [decolua/9router](https://github.com/decolua/9router) — a FREE AI router & token saver for CLI coding tools.
 
