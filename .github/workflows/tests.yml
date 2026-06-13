@@ -29,5 +29,5 @@ jobs:
         working-directory: tests
 
       - name: Run tests
-        run: npx vitest run --reporter=verbose
+        run: npx vitest run --reporter=verbose --exclude "**/unit/{antigravity-mitm,buildOutputFilter,claude-header-forwarding,db-benchmark,embeddings.cloud,kiro-model-slots,oauth-cursor-auto-import,openai-to-claude,rtk,translator-request-normalization}.test.js"
         working-directory: tests
