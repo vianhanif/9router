@@ -815,10 +815,13 @@ export async function getDataSummary() {
   const monthRows = db.all(`SELECT DISTINCT substr(timestamp, 1, 7) as ym FROM usageHistory ORDER BY ym`);
   const totalMonths = monthRows.length;
 
+  const oldestRow = db.get(`SELECT MIN(timestamp) as ts FROM usageHistory`);
+  const newestRow = db.get(`SELECT MAX(timestamp) as ts FROM usageHistory`);
+
   let dbFileSize = null;
   try { dbFileSize = fs.statSync(DATA_FILE)?.size ?? null; } catch {}
 
-  return { totalMonths, totalRequests, totalTokens, dbFileSize };
+  return { totalMonths, totalRequests, totalTokens, dbFileSize, oldestDate: oldestRow?.ts || null, newestDate: newestRow?.ts || null };
 }
 
 export async function getOldestRecordDate() {

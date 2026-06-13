@@ -3,6 +3,19 @@
 import { useState, useEffect } from "react";
 import { Card } from "@/shared/components";
 
+function formatDateRange(oldest, newest) {
+  if (!oldest && !newest) return "None";
+  const fmt = (iso) => {
+    const d = new Date(iso);
+    return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  };
+  if (!newest) return `Since ${fmt(oldest)}`;
+  if (!oldest) return `Until ${fmt(newest)}`;
+  const o = fmt(oldest);
+  const n = fmt(newest);
+  return o === n ? o : `${o} \u2013 ${n}`;
+}
+
 function formatBytes(bytes) {
   if (!bytes || bytes === 0) return "Unknown";
   const units = ["B", "KB", "MB", "GB"];
@@ -83,7 +96,7 @@ export default function DataSummaryCard() {
         <h3 className="text-base sm:text-lg font-semibold">Data Summary</h3>
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <Stat label="Months Tracked" value={summary.totalMonths} icon="calendar_month" />
+        <Stat label="Data Range" value={formatDateRange(summary.oldestDate, summary.newestDate)} icon="calendar_month" />
         <Stat label="Total Requests" value={summary.totalRequests?.toLocaleString() || "0"} icon="swap_vert" />
         <Stat label="Total Tokens" value={summary.totalTokens?.toLocaleString() || "0"} icon="token" />
         <Stat label="Database Size" value={formatBytes(summary.dbFileSize)} icon="database" />
