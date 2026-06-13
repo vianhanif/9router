@@ -14,9 +14,6 @@ concurrency:
 jobs:
   unit:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: tests
     steps:
       - uses: actions/checkout@v4
 
@@ -24,8 +21,13 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install dependencies
+      - name: Install root dependencies
+        run: npm install --no-audit --no-fund --ignore-scripts
+
+      - name: Install test dependencies
         run: npm install --no-audit --no-fund
+        working-directory: tests
 
       - name: Run tests
         run: npx vitest run --reporter=verbose
+        working-directory: tests
