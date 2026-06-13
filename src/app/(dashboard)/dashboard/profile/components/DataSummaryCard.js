@@ -25,7 +25,7 @@ function formatBytes(bytes) {
   return `${size.toFixed(1)} ${units[i]}`;
 }
 
-function Stat({ label, value, icon }) {
+function Stat({ label, value, icon, subtitle }) {
   return (
     <div className="flex items-start gap-3 p-3 rounded-lg bg-bg border border-border-subtle">
       <div className="p-2 rounded-lg bg-primary/10 text-primary">
@@ -34,6 +34,7 @@ function Stat({ label, value, icon }) {
       <div className="min-w-0">
         <p className="text-xs text-text-muted">{label}</p>
         <p className="font-semibold text-text-main truncate">{value}</p>
+        {subtitle && <p className="text-xs text-text-muted mt-0.5">{subtitle}</p>}
       </div>
     </div>
   );
@@ -96,7 +97,7 @@ export default function DataSummaryCard() {
         <h3 className="text-base sm:text-lg font-semibold">Data Summary</h3>
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <Stat label="Data Range" value={formatDateRange(summary.oldestDate, summary.newestDate)} icon="calendar_month" />
+        <Stat label="Months Tracked" value={`${summary.totalMonths} Month${summary.totalMonths !== 1 ? "s" : ""}`} icon="calendar_month" subtitle={formatDateRange(summary.oldestDate, summary.newestDate)} />
         <Stat label="Total Requests" value={summary.totalRequests?.toLocaleString() || "0"} icon="swap_vert" />
         <Stat label="Total Tokens" value={summary.totalTokens?.toLocaleString() || "0"} icon="token" />
         <Stat label="Database Size" value={formatBytes(summary.dbFileSize)} icon="database" />
