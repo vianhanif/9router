@@ -10,6 +10,8 @@ import { cn } from "@/shared/utils/cn";
 import { APP_CONFIG } from "@/shared/constants/config";
 import { LOCALE_COOKIE, normalizeLocale } from "@/i18n/config";
 import { LOCALE_FLAGS } from "@/shared/constants/locales";
+import DataSummaryCard from "./components/DataSummaryCard";
+import DataManagementSection from "./components/DataManagementSection";
 
 function getLocaleFromCookie() {
   if (typeof document === "undefined") return "en";
@@ -59,6 +61,8 @@ export default function ProfilePage() {
   const [proxyStatus, setProxyStatus] = useState({ type: "", message: "" });
   const [proxyLoading, setProxyLoading] = useState(false);
   const [proxyTestLoading, setProxyTestLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const handleDataCleared = () => setRefreshKey((k) => k + 1);
 
   useEffect(() => {
     setLocale(getLocaleFromCookie());
@@ -655,6 +659,9 @@ export default function ProfilePage() {
           </div>
         </Card>
 
+        {/* Data Summary */}
+        <DataSummaryCard key={refreshKey} />
+
         {/* Language */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
@@ -1103,6 +1110,9 @@ export default function ProfilePage() {
             />
           </div>
         </Card>
+
+        {/* Data Management */}
+        <DataManagementSection onDataCleared={handleDataCleared} />
 
         {/* Account actions */}
         <div className="flex flex-col sm:flex-row gap-2">
