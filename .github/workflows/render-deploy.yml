@@ -1,33 +1,52 @@
-name: Deploy to Koyeb
+name: Deploy to Render
 
 on:
   push:
-    branches: [master]
+    branches: [main]
+    tags: ["v*"]
   workflow_dispatch:
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    concurrency:
-      group: "9router-${{ github.ref_name }}"
-      cancel-in-progress: true
-    steps:
-      - name: Install Koyeb CLI
-        uses: koyeb-community/koyeb-actions@v2
-        with:
-          api_token: "${{ secrets.KOYEB_API_TOKEN }}"
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: decolua/9router
 
-      - name: Build and deploy
-        uses: koyeb/action-git-deploy@v1
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
         with:
-          app-name: 9router
-          service-name: 9router
-          service-type: web
-          service-instance-type: nano
-          service-regions: fra
-          git-builder: docker
-          git-branch: master
-          service-ports: "20128:http"
-          service-routes: "/:20128"
-          service-checks: "20128:http:/api/health"
-          service-env: "PORT=20128,HOSTNAME=0.0.0.0,NODE_ENV=production,NEXT_TELEMETRY_DISABLED=1,ENABLE_REQUEST_LOGS=false,AUTH_COOKIE_SECURE=true,DATA_DIR=/app/data"
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=,suffix=,format=short
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trigger Render deploy
+        if: github.ref == 'refs/heads/main'
+        run: |
+          curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
