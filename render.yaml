@@ -3,7 +3,7 @@ services:
     name: 9router
     env: docker
     dockerfilePath: ./Dockerfile
-    plan: starter
+    plan: free
     healthCheckPath: /api/health
     envVars:
       - key: JWT_SECRET
