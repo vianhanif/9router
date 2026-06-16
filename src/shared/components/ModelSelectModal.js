@@ -30,6 +30,8 @@ export default function ModelSelectModal({
   kindFilter = null,
   addedModelValues = [],
   closeOnSelect = true,
+  showSelectAll = false,
+  onSelectAll,
 }) {
   // Filter activeProviders by serviceKinds when kindFilter set (e.g. "webSearch", "webFetch")
   const filteredActiveProviders = useMemo(() => {
@@ -350,6 +352,35 @@ export default function ModelSelectModal({
     return filtered;
   }, [groupedModels, searchQuery, addedModelValues]);
 
+  const showSelectAllButton = showSelectAll && !kindFilter;
+
+  const unselectedInFilter = useMemo(() => {
+    if (!showSelectAllButton) return [];
+    const excluded = new Set([...addedModelValues, ...combos.map(c => c.name)]);
+    return Object.values(filteredGroups)
+      .flatMap(g => g.models)
+      .filter(m => !excluded.has(m.value) && !m.isPlaceholder);
+  }, [showSelectAllButton, filteredGroups, addedModelValues, combos]);
+
+  const addedInFilter = useMemo(() => {
+    if (!showSelectAllButton) return [];
+    return Object.values(filteredGroups)
+      .flatMap(g => g.models)
+      .filter(m => addedModelValues.includes(m.value) && !m.isPlaceholder);
+  }, [showSelectAllButton, filteredGroups, addedModelValues]);
+
+  const allFilteredSelected = unselectedInFilter.length === 0 && addedInFilter.length > 0;
+  const hasSelectAllButton = showSelectAllButton && (unselectedInFilter.length > 0 || allFilteredSelected);
+
+  const handleSelectAll = () => {
+    if (!onSelectAll) return;
+    if (allFilteredSelected) {
+      onSelectAll({ models: addedInFilter, mode: "remove" });
+    } else {
+      onSelectAll({ models: unselectedInFilter, mode: "add" });
+    }
+  };
+
   const handleSelect = (model) => {
     const value = model?.value || model?.name || model;
     const isAdded = addedModelValues.includes(value);
@@ -399,6 +430,24 @@ export default function ModelSelectModal({
           />
         </div>
       </div>
+
+      {/* Select All / Deselect All button */}
+      {hasSelectAllButton && (
+        <div className="mb-3">
+          <button
+            onClick={handleSelectAll}
+            className="w-full px-2.5 py-1.5 rounded-lg border border-primary/30 hover:border-primary/60 bg-primary/5 hover:bg-primary/10 transition-colors flex items-center gap-1.5 text-xs font-medium text-primary"
+          >
+            <span className="material-symbols-outlined text-[14px]">
+              {allFilteredSelected ? "deselect" : "select_all"}
+            </span>
+            {allFilteredSelected ? "Deselect All" : "Select All"}
+            <span className="ml-auto text-[10px] text-text-muted">
+              ({allFilteredSelected ? addedInFilter.length : unselectedInFilter.length})
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* Models grouped by provider - compact */}
       <div className="max-h-[400px] overflow-y-auto space-y-3">
@@ -533,5 +582,7 @@ ModelSelectModal.propTypes = {
   kindFilter: PropTypes.string,
   addedModelValues: PropTypes.arrayOf(PropTypes.string),
   closeOnSelect: PropTypes.bool,
+  showSelectAll: PropTypes.bool,
+  onSelectAll: PropTypes.func,
 };
 

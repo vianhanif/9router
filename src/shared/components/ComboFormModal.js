@@ -89,6 +89,14 @@ export default function ComboFormModal({ isOpen, combo, onClose, onSave, activeP
   const handleDeselectModel = (model) => {
     setModels(models.filter((m) => m !== model.value));
   };
+  const handleSelectAll = ({ models: payload, mode }) => {
+    const values = payload.map(m => m.value);
+    if (mode === "add") {
+      setModels(prev => [...prev, ...values.filter(v => !prev.includes(v))]);
+    } else {
+      setModels(prev => prev.filter(v => !values.includes(v)));
+    }
+  };
   const handleRemoveModel = (i) => setModels(models.filter((_, idx) => idx !== i));
   const handleMoveUp = (i) => {
     if (i === 0) return;
@@ -168,6 +176,7 @@ export default function ComboFormModal({ isOpen, combo, onClose, onSave, activeP
 
       <ModelSelectModal isOpen={showModelSelect} onClose={() => setShowModelSelect(false)}
         onSelect={handleAddModel} onDeselect={handleDeselectModel}
+        onSelectAll={handleSelectAll} showSelectAll
         activeProviders={activeProviders} modelAliases={modelAliases}
         title="Add Model to Combo" kindFilter={kindFilter}
         addedModelValues={models} closeOnSelect={false} />
