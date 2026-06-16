@@ -7,6 +7,7 @@ This fork adds custom enhancements on top of upstream.
 ### Features Added
 - **Monthly usage breakdown** — per-provider token/request stats with month picker and export
 - **Data management** — retention-based cleanup with preview, summary card, and confirmation modal
+- **Combos import/export** — bulk backup/restore model combos to/from JSON files
 - Various fixes and UI improvements
 
 ---
