@@ -71,3 +71,8 @@ export async function deleteCombo(id) {
   const res = db.run(`DELETE FROM combos WHERE id = ?`, [id]);
   return (res?.changes ?? 0) > 0;
 }
+
+export async function deleteAllCombos() {
+  const db = await getAdapter();
+  db.run(`DELETE FROM combos`);
+}
