@@ -46,7 +46,7 @@ describe("GET /api/combos/export", () => {
     const response = await GET();
     const body = await response.json();
 
-    expect(body).toEqual({ version: 1, exportedAt: expect.any(String), combos: [] });
+    expect(body).toEqual({ version: 2, exportedAt: expect.any(String), combos: [] });
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/json");
     expect(response.headers.get("content-disposition")).toContain("attachment");
@@ -62,17 +62,17 @@ describe("GET /api/combos/export", () => {
     const response = await GET();
     const body = await response.json();
 
-    expect(body.version).toBe(1);
+    expect(body.version).toBe(2);
     expect(body.combos).toHaveLength(2);
 
     const a = body.combos.find((c) => c.name === "combo-a");
     expect(a).toBeDefined();
     expect(a.kind).toBe("llm");
     expect(a.models).toEqual(["a/1", "a/2"]);
-    expect(a.roundRobin).toBe(false);
+    expect(a.strategy).toEqual({ fallbackStrategy: "fallback" });
   });
 
-  it("includes roundRobin flag from settings", async () => {
+  it("includes strategy object from settings", async () => {
     const { createCombo } = await import("@/lib/db/repos/combosRepo");
     const { updateSettings } = await import("@/lib/db/repos/settingsRepo");
     const { GET } = await import("@/app/api/combos/export/route");
@@ -83,7 +83,23 @@ describe("GET /api/combos/export", () => {
     const response = await GET();
     const body = await response.json();
 
-    expect(body.combos[0].roundRobin).toBe(true);
+    expect(body.combos[0].strategy).toEqual({ fallbackStrategy: "round-robin" });
+  });
+
+  it("includes fusion strategy with judgeModel from settings", async () => {
+    const { createCombo } = await import("@/lib/db/repos/combosRepo");
+    const { updateSettings } = await import("@/lib/db/repos/settingsRepo");
+    const { GET } = await import("@/app/api/combos/export/route");
+
+    await createCombo({ name: "fusion-combo", kind: "llm", models: ["a/1", "a/2"] });
+    await updateSettings({
+      comboStrategies: { "fusion-combo": { fallbackStrategy: "fusion", judgeModel: "gpt-4" } },
+    });
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(body.combos[0].strategy).toEqual({ fallbackStrategy: "fusion", judgeModel: "gpt-4" });
   });
 });
 
@@ -232,10 +248,39 @@ describe("POST /api/combos/import — validation", () => {
   });
 
   it("rejects non-boolean roundRobin", async () => {
-    const response = await callImport({ version: 1, combos: [{ name: "x", models: [], roundRobin: "yes" }] });
+    const response = await callImport({ version: 2, combos: [{ name: "x", models: [], roundRobin: "yes" }] });
     const body = await response.json();
     expect(response.status).toBe(400);
     expect(body.error).toContain("roundRobin must be a boolean");
+  });
+
+  it("rejects invalid strategy field (non-object)", async () => {
+    const response = await callImport({ version: 2, combos: [{ name: "x", models: [], strategy: "round-robin" }] });
+    const body = await response.json();
+    expect(response.status).toBe(400);
+    expect(body.error).toContain("strategy must be an object");
+  });
+
+  it("rejects invalid fallbackStrategy value", async () => {
+    const response = await callImport({ version: 2, combos: [{ name: "x", models: [], strategy: { fallbackStrategy: "invalid-mode" } }] });
+    const body = await response.json();
+    expect(response.status).toBe(400);
+    expect(body.error).toContain("invalid strategy");
+  });
+
+  it("rejects non-string judgeModel", async () => {
+    const response = await callImport({ version: 2, combos: [{ name: "x", models: [], strategy: { fallbackStrategy: "fusion", judgeModel: 123 } }] });
+    const body = await response.json();
+    expect(response.status).toBe(400);
+    expect(body.error).toContain("judgeModel must be a string");
+  });
+
+  it("accepts valid strategy object (fusion with judgeModel)", async () => {
+    const response = await callImport({
+      version: 2,
+      combos: [{ name: "x", models: [], strategy: { fallbackStrategy: "fusion", judgeModel: "gpt-4" } }],
+    });
+    expect(response.status).toBe(201);
   });
 });
 
@@ -355,6 +400,39 @@ describe("POST /api/combos/import — integration", () => {
 
     const settings = await getSettings();
     expect(settings.comboStrategies["pre-existing"]).toEqual({ fallbackStrategy: "round-robin" });
+  });
+
+  it("imports v2 strategy object (fusion with judgeModel)", async () => {
+    const response = await callImport({
+      version: 2,
+      combos: [
+        { name: "fusion-combo", models: ["m1", "m2"], strategy: { fallbackStrategy: "fusion", judgeModel: "gpt-4" } },
+        { name: "rr-combo", models: ["m3"], strategy: { fallbackStrategy: "round-robin" } },
+        { name: "fallback-combo", models: ["m4"] },
+      ],
+    });
+    expect(response.status).toBe(201);
+
+    const { getSettings } = await import("@/lib/db/repos/settingsRepo");
+    const settings = await getSettings();
+    expect(settings.comboStrategies["fusion-combo"]).toEqual({ fallbackStrategy: "fusion", judgeModel: "gpt-4" });
+    expect(settings.comboStrategies["rr-combo"]).toEqual({ fallbackStrategy: "round-robin" });
+    expect(settings.comboStrategies["fallback-combo"]).toBeUndefined();
+  });
+
+  it("does not carry over deleted combo strategies (old combos keep theirs)", async () => {
+    const { updateSettings, getSettings } = await import("@/lib/db/repos/settingsRepo");
+    await updateSettings({ comboStrategies: { "old-combo": { fallbackStrategy: "round-robin" } } });
+
+    await callImport({
+      version: 2,
+      combos: [{ name: "new-combo", models: ["m1"] }],
+    });
+
+    const settings = await getSettings();
+    // Non-imported combos keep their strategies; imported combos without strategy get none
+    expect(settings.comboStrategies["old-combo"]).toEqual({ fallbackStrategy: "round-robin" });
+    expect(settings.comboStrategies["new-combo"]).toBeUndefined();
   });
 
   it("transactional: combo insertion failure does not leave partial state", async () => {

@@ -13,14 +13,22 @@ export async function GET() {
     const comboStrategies = settings?.comboStrategies || {};
 
     const exportData = {
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
-      combos: combos.map((combo) => ({
-        name: combo.name,
-        kind: combo.kind,
-        models: combo.models,
-        roundRobin: comboStrategies[combo.name]?.fallbackStrategy === "round-robin" || false,
-      })),
+      combos: combos.map((combo) => {
+        const strategy = comboStrategies[combo.name];
+        return {
+          name: combo.name,
+          kind: combo.kind,
+          models: combo.models,
+          strategy: strategy
+            ? {
+                fallbackStrategy: strategy.fallbackStrategy || "fallback",
+                ...(strategy.judgeModel ? { judgeModel: strategy.judgeModel } : {}),
+              }
+            : { fallbackStrategy: "fallback" },
+        };
+      }),
     };
 
     const jsonStr = JSON.stringify(exportData, null, 2);
