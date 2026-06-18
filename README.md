@@ -1,6 +1,7 @@
 # 9Router
 
-Fork of [decolua/9router](https://github.com/decolua/9router) — a FREE AI router & token saver for CLI coding tools.
+Fork of [decolua/9router](https://github.com/decolua/9router) — a FREE AI router & token saver for CLI coding tools.  
+Aligned with upstream [v0.5.2](https://github.com/decolua/9router/releases/tag/v0.5.2).
 
 This fork adds custom enhancements on top of upstream.
 
