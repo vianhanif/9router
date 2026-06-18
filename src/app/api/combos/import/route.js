@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 const VALID_NAME_REGEX = /^[a-zA-Z0-9_.\-]+$/;
 const VALID_KINDS = ["llm", "webSearch", "webFetch"];
+const VALID_STRATEGIES = ["fallback", "round-robin", "fusion"];
 
 export async function POST(request) {
   try {
@@ -64,6 +65,18 @@ export async function POST(request) {
       if (combo.roundRobin != null && typeof combo.roundRobin !== "boolean") {
         return NextResponse.json({ error: `Combo ${idx}: roundRobin must be a boolean` }, { status: 400 });
       }
+
+      if (combo.strategy != null) {
+        if (typeof combo.strategy !== "object" || Array.isArray(combo.strategy)) {
+          return NextResponse.json({ error: `Combo ${idx}: strategy must be an object` }, { status: 400 });
+        }
+        if (combo.strategy.fallbackStrategy && !VALID_STRATEGIES.includes(combo.strategy.fallbackStrategy)) {
+          return NextResponse.json({ error: `Combo ${idx}: invalid strategy "${combo.strategy.fallbackStrategy}"` }, { status: 400 });
+        }
+        if (combo.strategy.judgeModel != null && typeof combo.strategy.judgeModel !== "string") {
+          return NextResponse.json({ error: `Combo ${idx}: judgeModel must be a string` }, { status: 400 });
+        }
+      }
     }
 
     // Execute import in a single transaction
@@ -90,23 +103,31 @@ export async function POST(request) {
       }
     });
 
-    // Update comboStrategies in settings if roundRobin is present
-    const hasRoundRobin = body.combos.some((combo) => combo.roundRobin === true);
-    if (hasRoundRobin) {
-      const settings = await getSettings();
-      const currentStrategies = settings?.comboStrategies || {};
-      const updatedStrategies = { ...currentStrategies };
+    // Persist combo strategies in settings
+    const settings = await getSettings();
+    const currentStrategies = settings?.comboStrategies || {};
+    const updatedStrategies = { ...currentStrategies };
 
-      for (const combo of body.combos) {
-        if (combo.roundRobin === true) {
-          updatedStrategies[combo.name.trim()] = { fallbackStrategy: "round-robin" };
-        } else {
-          delete updatedStrategies[combo.name.trim()];
-        }
+    for (const combo of body.combos) {
+      const name = combo.name.trim();
+
+      // New format (v2): explicit strategy object
+      if (combo.strategy) {
+        const strategy = { fallbackStrategy: combo.strategy.fallbackStrategy || "fallback" };
+        if (combo.strategy.judgeModel) strategy.judgeModel = combo.strategy.judgeModel;
+        updatedStrategies[name] = strategy;
+        continue;
       }
 
-      await updateSettings({ comboStrategies: updatedStrategies });
+      // Legacy format (v1): roundRobin boolean
+      if (combo.roundRobin === true) {
+        updatedStrategies[name] = { fallbackStrategy: "round-robin" };
+      } else {
+        delete updatedStrategies[name];
+      }
     }
+
+    await updateSettings({ comboStrategies: updatedStrategies });
 
     return NextResponse.json({ success: true, count: body.combos.length }, { status: 201 });
   } catch (error) {
