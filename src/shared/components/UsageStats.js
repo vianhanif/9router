@@ -552,8 +552,6 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
         </div>
       )}
 
-      )}
-
       {/* Month picker + export — always visible when Monthly is selected, even with hidePeriodSelector */}
       {period === "monthly" && (
         <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:self-end">
