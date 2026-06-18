@@ -28,10 +28,12 @@ export function reorderByCapabilities(models, required) {
   };
 
   // Stable sort by tier (Array.prototype.sort is stable in modern engines).
-  return models
+  const sorted = models
     .map((m, i) => ({ m, i, t: tierOf(m) }))
     .sort((a, b) => a.t - b.t || a.i - b.i)
     .map((x) => x.m);
+
+  return sorted.every((m, i) => m === models[i]) ? models : sorted;
 }
 
 /**
@@ -80,7 +82,14 @@ export function detectRequiredCapabilities(body) {
   const contents = body.contents || body.request?.contents;                      // gemini / antigravity
   for (const c of trailingUserItems(contents)) scanContent(c.parts);
 
-  // search: temporarily disabled in auto-switch (feature not wired yet).
+  // search: detect from tools array
+  if (Array.isArray(body.tools)) {
+    for (const tool of body.tools) {
+      if (tool && (tool.type === "web_search" || tool.type === "webSearch" || tool.name === "web_search")) {
+        required.add("search");
+      }
+    }
+  }
 
   return required;
 }
