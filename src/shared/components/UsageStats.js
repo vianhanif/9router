@@ -39,16 +39,48 @@ function TimeAgo({ timestamp }) {
 }
 
 function RecentRequests({ requests = [] }) {
+  const [recentTab, setRecentTab] = useState("incoming");
+
+  const grouped = useMemo(() => {
+    const map = {};
+    requests.forEach((r) => {
+      if (!map[r.model]) {
+        map[r.model] = { model: r.model, lastUsed: r.timestamp };
+      } else if (r.timestamp && (!map[r.model].lastUsed || new Date(r.timestamp) > new Date(map[r.model].lastUsed))) {
+        map[r.model].lastUsed = r.timestamp;
+      }
+    });
+    return Object.values(map).sort((a, b) => {
+      if (!a.lastUsed) return 1;
+      if (!b.lastUsed) return -1;
+      return new Date(b.lastUsed) - new Date(a.lastUsed);
+    });
+  }, [requests]);
+
   return (
     <Card className="flex min-w-0 flex-col overflow-hidden" padding="sm" style={{ height: 480 }}>
-      {/* Header */}
-      <div className="px-1 py-2 border-b border-border shrink-0">
+      {/* Header + tabs */}
+      <div className="px-1 py-2 border-b border-border shrink-0 flex items-center gap-3">
         <span className="text-xs font-semibold text-text-muted uppercase tracking-wide">Recent Requests</span>
+        <div className="flex items-center gap-0.5 rounded-md bg-bg-subtle p-0.5">
+          <button
+            onClick={() => setRecentTab("incoming")}
+            className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${recentTab === "incoming" ? "bg-surface text-text-main shadow-sm" : "text-text-muted hover:text-text"}`}
+          >
+            Incoming
+          </button>
+          <button
+            onClick={() => setRecentTab("grouped")}
+            className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${recentTab === "grouped" ? "bg-surface text-text-main shadow-sm" : "text-text-muted hover:text-text"}`}
+          >
+            Grouped
+          </button>
+        </div>
       </div>
 
       {!requests.length ? (
         <div className="flex-1 flex items-center justify-center text-text-muted text-sm">No requests yet.</div>
-      ) : (
+      ) : recentTab === "incoming" ? (
         <div className="flex-1 overflow-y-auto">
           <table className="w-full min-w-[300px] border-collapse text-xs">
             <thead className="sticky top-0 bg-bg z-10">
@@ -77,6 +109,27 @@ function RecentRequests({ requests = [] }) {
                   </tr>
                 );
               })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto">
+          <table className="w-full min-w-[300px] border-collapse text-xs">
+            <thead className="sticky top-0 bg-bg z-10">
+              <tr className="border-b border-border">
+                <th className="py-1.5 text-left font-semibold text-text-muted">Model</th>
+                <th className="py-1.5 text-right font-semibold text-text-muted">Last Used</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/50">
+              {grouped.map((g) => (
+                <tr key={g.model} className="hover:bg-bg-subtle transition-colors">
+                  <td className="py-1.5 font-mono truncate max-w-[200px]" title={g.model}>{g.model}</td>
+                  <td className="py-1.5 text-right text-text-muted whitespace-nowrap">
+                    {g.lastUsed ? <TimeAgo timestamp={g.lastUsed} /> : "—"}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
