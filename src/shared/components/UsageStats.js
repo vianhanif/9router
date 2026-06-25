@@ -677,8 +677,11 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
         </div>
       )}
 
-      {/* Token / Cost chart - sync period (hidden for monthly) */}
-      {loading ? null : period !== "monthly" && <UsageChart period={period} />}
+      {/* Token / Cost chart */}
+      {loading ? null : <UsageChart period={period}
+        month={period === "monthly" ? selectedMonth : undefined}
+        cutoffDay={period === "monthly" ? cutoffDay : undefined}
+      />}
 
       {/* Table with dropdown selector */}
       <div className="flex flex-col gap-3">
