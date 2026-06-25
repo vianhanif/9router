@@ -718,9 +718,40 @@ export async function getMonthlyUsage(yearMonth, cutoffDay = 1) {
   };
 }
 
-export async function getChartData(period = "7d") {
+export async function getChartData(period = "7d", options = {}) {
   const db = await getAdapter();
   const now = Date.now();
+
+  if (period === "monthly") {
+    const { yearMonth, cutoffDay } = options;
+    if (!yearMonth) throw new Error("yearMonth required for monthly chart");
+    const [yr, mo] = yearMonth.split("-").map(Number);
+    const startDate = new Date(yr, mo - 1, cutoffDay || 1);
+    if (startDate.getDate() !== (cutoffDay || 1)) startDate.setDate(0);
+    const endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + 1);
+    if (endDate.getDate() !== startDate.getDate()) endDate.setDate(0);
+    const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const rows = db.all(
+      `SELECT dateKey, data FROM usageDaily WHERE dateKey >= ? AND dateKey < ?`,
+      [fmt(startDate), fmt(endDate)]
+    );
+    const dayMap = {};
+    for (const r of rows) dayMap[r.dateKey] = parseJson(r.data, {});
+    const result = [];
+    const cur = new Date(startDate);
+    while (cur < endDate) {
+      const key = fmt(cur);
+      const dayData = dayMap[key] || {};
+      result.push({
+        label: cur.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        tokens: (dayData.promptTokens || 0) + (dayData.completionTokens || 0),
+        cost: dayData.cost || 0,
+      });
+      cur.setDate(cur.getDate() + 1);
+    }
+    return result;
+  }
 
   if (period === "today") {
     const bucketCount = 24;

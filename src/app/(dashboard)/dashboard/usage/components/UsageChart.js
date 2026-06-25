@@ -22,15 +22,20 @@ const fmtTokens = (n) => {
 
 const fmtCost = (n) => `$${(n || 0).toFixed(4)}`;
 
-export default function UsageChart({ period = "7d" }) {
+export default function UsageChart({ period = "7d", month, cutoffDay }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState("tokens");
 
   const fetchData = useCallback(async () => {
+    if (period === "monthly" && (cutoffDay == null)) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/usage/chart?period=${period}`);
+      let url = `/api/usage/chart?period=${period}`;
+      if (period === "monthly") {
+        url += `&month=${month}&cutoffDay=${cutoffDay}`;
+      }
+      const res = await fetch(url);
       if (res.ok) {
         const json = await res.json();
         setData(json);
@@ -40,13 +45,14 @@ export default function UsageChart({ period = "7d" }) {
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, month, cutoffDay]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   const hasData = data.some((d) => d.tokens > 0 || d.cost > 0);
+  const xInterval = period === "monthly" && data.length > 0 ? Math.max(1, Math.floor(data.length / 5)) : "preserveStartEnd";
 
   return (
     <Card className="flex min-w-0 flex-col gap-3 p-3 sm:p-4">
@@ -88,7 +94,7 @@ export default function UsageChart({ period = "7d" }) {
               tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.5 }}
               tickLine={false}
               axisLine={false}
-              interval="preserveStartEnd"
+              interval={xInterval}
             />
             <YAxis
               tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.5 }}
@@ -138,4 +144,6 @@ export default function UsageChart({ period = "7d" }) {
 
 UsageChart.propTypes = {
   period: PropTypes.string,
+  month: PropTypes.string,
+  cutoffDay: PropTypes.number,
 };
