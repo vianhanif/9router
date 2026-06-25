@@ -16,6 +16,7 @@ export async function GET(request) {
 
     if (period === "monthly") {
       const month = searchParams.get("month");
+      const cutoffDay = parseInt(searchParams.get("cutoffDay")) || 1;
       if (!month || !/^\d{4}-\d{2}$/.test(month)) {
         return NextResponse.json({ error: "Invalid month format. Use YYYY-MM." }, { status: 400 });
       }
@@ -25,7 +26,7 @@ export async function GET(request) {
       if (monthsAgo < 0 || monthsAgo > 24) {
         return NextResponse.json({ error: "Month out of range. Max 24 months history." }, { status: 400 });
       }
-      const stats = await getMonthlyUsage(month);
+      const stats = await getMonthlyUsage(month, cutoffDay);
       return NextResponse.json(stats);
     }
 

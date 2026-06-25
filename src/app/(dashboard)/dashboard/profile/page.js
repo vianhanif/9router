@@ -662,6 +662,48 @@ export default function ProfilePage() {
         {/* Data Summary */}
         <DataSummaryCard key={refreshKey} />
 
+        {/* Usage */}
+        <Card>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-green-500/10 text-green-500 shrink-0">
+              <span className="material-symbols-outlined text-[20px]">calendar_month</span>
+            </div>
+            <h3 className="text-base sm:text-lg font-semibold">Usage Dashboard</h3>
+          </div>
+          <div className="flex flex-col gap-4">
+            <div className="flex items-start sm:items-center justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm sm:text-base">Monthly Cutoff Day</p>
+                <p className="text-xs sm:text-sm text-text-muted">
+                  Day of month that starts &amp; ends each billing period (e.g. 25 = June 25 → July 25)
+                </p>
+              </div>
+              <select
+                value={settings.usageBillingStartDay ?? 1}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value);
+                  fetch("/api/settings", {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ usageBillingStartDay: val }),
+                  })
+                    .then((r) => r.ok ? r.json() : null)
+                    .then((data) => {
+                      if (data) setSettings(prev => ({ ...prev, ...data }));
+                    })
+                    .catch(console.error);
+                }}
+                className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50"
+                style={{ colorScheme: 'auto' }}
+              >
+                {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                  <option key={d} value={d}>Day {d}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </Card>
+
         {/* Language */}
         <Card>
           <div className="flex items-center gap-3 mb-4">

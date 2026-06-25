@@ -18,7 +18,7 @@ export async function GET(request) {
       return NextResponse.json({ error: "Format must be 'json' or 'csv'" }, { status: 400 });
     }
 
-    const data = await getMonthlyUsage(month);
+    const data = await getMonthlyUsage(month, parseInt(searchParams.get("cutoffDay")) || 1);
 
     if (format === "csv") {
       // RFC 4180 CSV quoting helper

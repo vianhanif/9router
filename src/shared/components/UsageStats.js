@@ -117,10 +117,13 @@ function MonthlyOverviewCards({ stats }) {
         </span>
       </Card>
 
-      {/* Days with data card */}
+      {/* Billing period card */}
       <Card className="flex min-w-0 flex-col gap-1 px-4 py-3">
-        <span className="text-text-muted text-sm uppercase font-semibold">Days Active</span>
-        <span className="truncate text-2xl font-bold">{stats.days ?? "—"}</span>
+        <span className="text-text-muted text-sm uppercase font-semibold">Billing Period</span>
+        <span className="truncate text-lg font-bold">{stats.from} → {stats.to}</span>
+        <span className="text-xs text-text-muted">
+          {stats.days ?? "—"} day{stats.days !== 1 ? "s" : ""} with data
+        </span>
       </Card>
     </div>
   );
@@ -251,15 +254,17 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
   const [exporting, setExporting] = useState(false);
+  const [cutoffDay, setCutoffDay] = useState(null);
   const isInitialLoad = useRef(true);
   const hasLoadedStats = useRef(false);
+  const fetchRef = useRef(0);
   const period = periodProp ?? periodLocal;
   const setPeriod = setPeriodProp ?? setPeriodLocal;
 
   async function handleExport(format) {
     setExporting(true);
     try {
-      const res = await fetch(`/api/usage/export?period=monthly&month=${selectedMonth}&format=${format}`);
+      const res = await fetch(`/api/usage/export?period=monthly&month=${selectedMonth}&cutoffDay=${cutoffDay}&format=${format}`);
       if (!res.ok) throw new Error("Export failed");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -280,6 +285,15 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
   // Fetch connected providers once, deduplicate by provider type
   // Always include noAuth free providers (e.g. opencode) regardless of connections
   useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data && data.usageBillingStartDay != null) {
+          setCutoffDay(data.usageBillingStartDay);
+        }
+      })
+      .catch(() => {});
+
     Promise.all([
       fetch("/api/providers").then((r) => r.ok ? r.json() : null),
       fetch("/api/provider-nodes").then((r) => r.ok ? r.json() : null),
@@ -311,6 +325,14 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
 
   // Fetch filtered stats via REST when period or selectedMonth changes
   useEffect(() => {
+    const thisFetch = ++fetchRef.current;
+
+    // Don't fetch monthly stats until cutoffDay loaded from settings
+    if (period === "monthly" && cutoffDay === null) {
+      setLoading(false);
+      return;
+    }
+
     // First load: show full spinner; subsequent: show subtle fetching indicator
     if (isInitialLoad.current) {
       isInitialLoad.current = false;
@@ -321,12 +343,13 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
 
     let url = `/api/usage/stats?period=${period}`;
     if (period === "monthly") {
-      url += `&month=${selectedMonth}`;
+      url += `&month=${selectedMonth}&cutoffDay=${cutoffDay}`;
     }
 
     fetch(url)
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
+        if (thisFetch !== fetchRef.current) return; // stale response
         if (data) {
           hasLoadedStats.current = true;
           setStats((prev) => ({ ...prev, ...data }));
@@ -334,10 +357,11 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       })
       .catch(() => {})
       .finally(() => {
+        if (thisFetch !== fetchRef.current) return;
         setLoading(false);
         setFetching(false);
       });
-  }, [period, selectedMonth]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [period, selectedMonth, cutoffDay]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // SSE connection - real-time updates for activeRequests + recentRequests only
   useEffect(() => {
