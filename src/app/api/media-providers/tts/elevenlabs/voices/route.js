@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getProviderConnections } from "@/lib/localDb";
-import { fetchElevenLabsVoices } from "open-sse/handlers/ttsCore.js";
+import { fetchElevenLabsVoices } from "@9router/core/handlers/ttsCore.js";
 
 const langNames = new Intl.DisplayNames(["en"], { type: "language" });
 

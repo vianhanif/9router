@@ -4,11 +4,11 @@ import {
 } from "../services/auth.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
-import { handleTtsCore } from "open-sse/handlers/ttsCore.js";
-import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
-import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
+import { handleTtsCore } from "@9router/core/handlers/ttsCore.js";
+import { errorResponse, unavailableResponse } from "@9router/core/utils/error.js";
+import { HTTP_STATUS } from "@9router/core/config/runtimeConfig.js";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
-import { handleComboChat } from "open-sse/services/combo.js";
+import { handleComboChat } from "@9router/core/services/combo.js";
 import * as log from "../utils/logger.js";
 
 // Derived from providers.js: any TTS provider not noAuth requires stored credentials

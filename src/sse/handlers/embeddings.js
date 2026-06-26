@@ -7,9 +7,9 @@ import {
 } from "../services/auth.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
-import { handleEmbeddingsCore } from "open-sse/handlers/embeddingsCore.js";
-import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
-import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
+import { handleEmbeddingsCore } from "@9router/core/handlers/embeddingsCore.js";
+import { errorResponse, unavailableResponse } from "@9router/core/utils/error.js";
+import { HTTP_STATUS } from "@9router/core/config/runtimeConfig.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 

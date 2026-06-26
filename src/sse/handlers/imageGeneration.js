@@ -7,11 +7,11 @@ import {
 } from "../services/auth.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
-import { handleImageGenerationCore } from "open-sse/handlers/imageGenerationCore.js";
-import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
-import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
+import { handleImageGenerationCore } from "@9router/core/handlers/imageGenerationCore.js";
+import { errorResponse, unavailableResponse } from "@9router/core/utils/error.js";
+import { HTTP_STATUS } from "@9router/core/config/runtimeConfig.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
-import { handleComboChat } from "open-sse/services/combo.js";
+import { handleComboChat } from "@9router/core/services/combo.js";
 import * as log from "../utils/logger.js";
 
 // Providers that don't require credentials (noAuth)

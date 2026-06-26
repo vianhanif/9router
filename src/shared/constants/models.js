@@ -11,10 +11,10 @@ export {
   getModelsByProviderId,
   getModelUpstreamId,
   getModelQuotaFamily
-} from "open-sse/config/providerModels.js";
+} from "@9router/core/config/providerModels.js";
 
 import { AI_PROVIDERS, isOpenAICompatibleProvider } from "./providers.js";
-import { PROVIDER_MODELS as MODELS } from "open-sse/config/providerModels.js";
+import { PROVIDER_MODELS as MODELS } from "@9router/core/config/providerModels.js";
 
 // Providers that accept any model (passthrough)
 const PASSTHROUGH_PROVIDERS = new Set(

@@ -1,5 +1,5 @@
 // Provider definitions
-import REGISTRY from "open-sse/providers/registry/index.js";
+import REGISTRY from "@9router/core/providers/registry/index.js";
 import { RISK_NOTICE } from "@/shared/constants/providersDisplay";
 
 const MEDIA_ENTRY_KEYS = [

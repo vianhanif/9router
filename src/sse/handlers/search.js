@@ -7,12 +7,12 @@ import {
 } from "../services/auth.js";
 import { getSettings, getCombos } from "@/lib/localDb";
 import { AI_PROVIDERS, resolveProviderId } from "@/shared/constants/providers.js";
-import { handleSearchCore } from "open-sse/handlers/search/index.js";
-import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
-import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
+import { handleSearchCore } from "@9router/core/handlers/search/index.js";
+import { errorResponse, unavailableResponse } from "@9router/core/utils/error.js";
+import { HTTP_STATUS } from "@9router/core/config/runtimeConfig.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
-import { handleComboChat, getComboModelsFromData } from "open-sse/services/combo.js";
+import { handleComboChat, getComboModelsFromData } from "@9router/core/services/combo.js";
 
 /**
  * Handle web search request for the SSE/Next.js server.
