@@ -79,5 +79,6 @@ open-sse.old/
 
 # workspace build outputs
 apps/dashboard/.next/
+apps/dashboard/node_modules/
 apps/server/node_modules/
 packages/*/node_modules/
