@@ -27,6 +27,27 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const period = searchParams.get("period") || "7d";
+    const granularity = searchParams.get("granularity");
+    const dateKey = searchParams.get("dateKey");
+
+    if (granularity === "hour" && dateKey) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+        return NextResponse.json({ error: "Invalid dateKey (expected YYYY-MM-DD)" }, { status: 400 });
+      }
+      return NextResponse.json(await getChartData("hourly", { dateKey }));
+    }
+
+    if (granularity === "minute" && dateKey) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+        return NextResponse.json({ error: "Invalid dateKey (expected YYYY-MM-DD)" }, { status: 400 });
+      }
+      const hour = parseInt(searchParams.get("hour"));
+      if (isNaN(hour) || hour < 0 || hour > 23) {
+        return NextResponse.json({ error: "Invalid hour (0-23)" }, { status: 400 });
+      }
+      return NextResponse.json(await getChartData("minute", { dateKey, hour }));
+    }
+
     if (period === "monthly") return handleMonthlyChart(searchParams);
     const result = await handleStandardChart(period);
     if (!result) return NextResponse.json({ error: "Invalid period" }, { status: 400 });

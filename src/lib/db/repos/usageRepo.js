@@ -747,6 +747,7 @@ export async function getChartData(period = "7d", options = {}) {
         label: cur.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
         tokens: (dayData.promptTokens || 0) + (dayData.completionTokens || 0),
         cost: dayData.cost || 0,
+        dateKey: key,
       });
       cur.setDate(cur.getDate() + 1);
     }
@@ -761,7 +762,8 @@ export async function getChartData(period = "7d", options = {}) {
     const startTime = startOfDay.getTime();
     const endTime = startTime + bucketCount * bucketMs;
     const labelFn = (ts) => new Date(ts).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
-    const buckets = Array.from({ length: bucketCount }, (_, i) => ({ label: labelFn(startTime + i * bucketMs), tokens: 0, cost: 0 }));
+    const todayKey = startOfDay.toISOString().slice(0, 10);
+    const buckets = Array.from({ length: bucketCount }, (_, i) => ({ label: labelFn(startTime + i * bucketMs), tokens: 0, cost: 0, dateKey: todayKey, hour: i }));
 
     const rows = db.all(
       `SELECT timestamp, promptTokens, completionTokens, cost FROM usageHistory WHERE timestamp >= ?`,
@@ -784,7 +786,10 @@ export async function getChartData(period = "7d", options = {}) {
     const bucketMs = 3600000;
     const labelFn = (ts) => new Date(ts).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
     const startTime = now - bucketCount * bucketMs;
-    const buckets = Array.from({ length: bucketCount }, (_, i) => ({ label: labelFn(startTime + i * bucketMs), tokens: 0, cost: 0 }));
+    const buckets = Array.from({ length: bucketCount }, (_, i) => {
+      const bt = new Date(startTime + i * bucketMs);
+      return { label: labelFn(startTime + i * bucketMs), tokens: 0, cost: 0, dateKey: getLocalDateKey(bt), hour: bt.getHours() };
+    });
 
     const rows = db.all(
       `SELECT timestamp, promptTokens, completionTokens, cost FROM usageHistory WHERE timestamp >= ?`,
@@ -796,6 +801,72 @@ export async function getChartData(period = "7d", options = {}) {
       const idx = Math.min(Math.floor((t - startTime) / bucketMs), bucketCount - 1);
       buckets[idx].tokens += (r.promptTokens || 0) + (r.completionTokens || 0);
       buckets[idx].cost += r.cost || 0;
+    }
+    return buckets;
+  }
+
+  if (period === "hourly") {
+    const { dateKey } = options;
+    if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+      throw new Error("dateKey required, format YYYY-MM-DD");
+    }
+    const [yr, mo, dy] = dateKey.split("-").map(Number);
+    const startMs = new Date(yr, mo - 1, dy).getTime();
+    const endMs = startMs + 86400000;
+    const bucketMs = 3600000;
+    const labelFn = (ts) => new Date(ts).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+    const buckets = Array.from({ length: 24 }, (_, i) => ({
+      label: labelFn(startMs + i * bucketMs),
+      tokens: 0,
+      cost: 0,
+      hour: i,
+    }));
+    const rows = db.all(
+      `SELECT timestamp, promptTokens, completionTokens, cost FROM usageHistory WHERE timestamp >= ? AND timestamp < ?`,
+      [new Date(startMs).toISOString(), new Date(endMs).toISOString()]
+    );
+    for (const r of rows) {
+      const t = new Date(r.timestamp).getTime();
+      if (t < startMs || t >= endMs) continue;
+      const idx = Math.floor((t - startMs) / bucketMs);
+      if (idx >= 0 && idx < 24) {
+        buckets[idx].tokens += (r.promptTokens || 0) + (r.completionTokens || 0);
+        buckets[idx].cost += r.cost || 0;
+      }
+    }
+    return buckets;
+  }
+
+  if (period === "minute") {
+    const { dateKey, hour } = options;
+    if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+      throw new Error("dateKey required, format YYYY-MM-DD");
+    }
+    if (hour == null || hour < 0 || hour > 23) {
+      throw new Error("hour required, 0-23");
+    }
+    const [yr, mo, dy] = dateKey.split("-").map(Number);
+    const startMs = new Date(yr, mo - 1, dy, hour, 0, 0, 0).getTime();
+    const endMs = startMs + 3600000;
+    const bucketMs = 60000;
+    const labelFn = (ts) => new Date(ts).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+    const buckets = Array.from({ length: 60 }, (_, i) => ({
+      label: labelFn(startMs + i * bucketMs),
+      tokens: 0,
+      cost: 0,
+    }));
+    const rows = db.all(
+      `SELECT timestamp, promptTokens, completionTokens, cost FROM usageHistory WHERE timestamp >= ? AND timestamp < ?`,
+      [new Date(startMs).toISOString(), new Date(endMs).toISOString()]
+    );
+    for (const r of rows) {
+      const t = new Date(r.timestamp).getTime();
+      if (t < startMs || t >= endMs) continue;
+      const idx = Math.floor((t - startMs) / bucketMs);
+      if (idx >= 0 && idx < 60) {
+        buckets[idx].tokens += (r.promptTokens || 0) + (r.completionTokens || 0);
+        buckets[idx].cost += r.cost || 0;
+      }
     }
     return buckets;
   }
@@ -818,6 +889,7 @@ export async function getChartData(period = "7d", options = {}) {
       label: labelFn(d),
       tokens: dayData ? (dayData.promptTokens || 0) + (dayData.completionTokens || 0) : 0,
       cost: dayData ? (dayData.cost || 0) : 0,
+      dateKey,
     };
   });
 }
