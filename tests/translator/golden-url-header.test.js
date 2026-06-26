@@ -31,9 +31,6 @@ function sanitize(headers) {
       ? v.replace(/Bearer .+/, "Bearer <TOK>")
           .replace(/sk-test-APIKEY|tok-test-ACCESS/g, "<CRED>")
           .replace(/kimi-\d{10,}/g, "kimi-<TS>")
-          .replace(/^(darwin|linux|win32|freebsd|openbsd|aix|sunos)$/, "<PLATFORM>")
-          .replace(/^(darwin|linux|win32) (x64|arm64|ia32)$/, "<PLATFORM> <ARCH>")
-          .replace(/^v\d+\.\d+\.\d+/, "<NODE_VER>")
       : v;
   }
   return out;
