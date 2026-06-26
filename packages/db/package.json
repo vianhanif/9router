@@ -1,0 +1,18 @@
+{
+  "name": "@9router/db",
+  "version": "0.5.8",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./*": "./src/*"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.6.2",
+    "sql.js": "^1.14.1"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^12.6.2"
+  }
+}

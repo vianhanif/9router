@@ -1,0 +1,22 @@
+{
+  "name": "9router-server",
+  "version": "0.5.8",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "NODE_ENV=production node src/index.js",
+    "build": "echo 'Server is plain JS — no build needed'"
+  },
+  "dependencies": {
+    "@9router/core": "*",
+    "@9router/db": "*",
+    "@9router/shared": "*",
+    "@hono/node-server": "^1.19.14",
+    "bcryptjs": "^3.0.3",
+    "hono": "^4.12.27",
+    "jose": "^6.1.3",
+    "undici": "^7.19.2",
+    "uuid": "^13.0.0"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "@9router/core",
+  "version": "0.5.8",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./*": "./*"
+  }
+}
