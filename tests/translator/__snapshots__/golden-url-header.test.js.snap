@@ -222,52 +222,6 @@ exports[`GOLDEN buildHeaders (default executor providers) > claude → headers (
 }
 `;
 
-exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (apiKey / oauth) 1`] = `
-{
-  "apiKey": {
-    "Accept": "text/event-stream",
-    "Authorization": "Bearer <TOK>",
-    "Content-Type": "application/json",
-    "HTTP-Referer": "https://cline.bot",
-    "User-Agent": "9Router/0.5.8",
-    "X-CLIENT-TYPE": "9router",
-    "X-CLIENT-VERSION": "0.5.8",
-    "X-CORE-VERSION": "0.5.8",
-    "X-IS-MULTIROOT": "false",
-    "X-PLATFORM": "darwin",
-    "X-PLATFORM-VERSION": "v26.3.0",
-    "X-Title": "Cline",
-  },
-  "nonStream": {
-    "Authorization": "Bearer <TOK>",
-    "Content-Type": "application/json",
-    "HTTP-Referer": "https://cline.bot",
-    "User-Agent": "9Router/0.5.8",
-    "X-CLIENT-TYPE": "9router",
-    "X-CLIENT-VERSION": "0.5.8",
-    "X-CORE-VERSION": "0.5.8",
-    "X-IS-MULTIROOT": "false",
-    "X-PLATFORM": "darwin",
-    "X-PLATFORM-VERSION": "v26.3.0",
-    "X-Title": "Cline",
-  },
-  "oauth": {
-    "Accept": "text/event-stream",
-    "Authorization": "Bearer <TOK>",
-    "Content-Type": "application/json",
-    "HTTP-Referer": "https://cline.bot",
-    "User-Agent": "9Router/0.5.8",
-    "X-CLIENT-TYPE": "9router",
-    "X-CLIENT-VERSION": "0.5.8",
-    "X-CORE-VERSION": "0.5.8",
-    "X-IS-MULTIROOT": "false",
-    "X-PLATFORM": "darwin",
-    "X-PLATFORM-VERSION": "v26.3.0",
-    "X-Title": "Cline",
-  },
-}
-`;
-
 exports[`GOLDEN buildHeaders (default executor providers) > cloudflare-ai → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -559,43 +513,6 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi → headers (ap
     "Anthropic-Beta": "claude-code-20250219,interleaved-thinking-2025-05-14",
     "Anthropic-Version": "2023-06-01",
     "Content-Type": "application/json",
-    "x-api-key": "<CRED>",
-  },
-}
-`;
-
-exports[`GOLDEN buildHeaders (default executor providers) > kimi-coding → headers (apiKey / oauth) 1`] = `
-{
-  "apiKey": {
-    "Accept": "text/event-stream",
-    "Anthropic-Beta": "claude-code-20250219,interleaved-thinking-2025-05-14",
-    "Anthropic-Version": "2023-06-01",
-    "Content-Type": "application/json",
-    "X-Msh-Device-Id": "kimi-<TS>",
-    "X-Msh-Device-Model": "darwin x64",
-    "X-Msh-Platform": "9router",
-    "X-Msh-Version": "2.1.2",
-    "x-api-key": "<CRED>",
-  },
-  "nonStream": {
-    "Anthropic-Beta": "claude-code-20250219,interleaved-thinking-2025-05-14",
-    "Anthropic-Version": "2023-06-01",
-    "Content-Type": "application/json",
-    "X-Msh-Device-Id": "kimi-<TS>",
-    "X-Msh-Device-Model": "darwin x64",
-    "X-Msh-Platform": "9router",
-    "X-Msh-Version": "2.1.2",
-    "x-api-key": "<CRED>",
-  },
-  "oauth": {
-    "Accept": "text/event-stream",
-    "Anthropic-Beta": "claude-code-20250219,interleaved-thinking-2025-05-14",
-    "Anthropic-Version": "2023-06-01",
-    "Content-Type": "application/json",
-    "X-Msh-Device-Id": "kimi-<TS>",
-    "X-Msh-Device-Model": "darwin x64",
-    "X-Msh-Platform": "9router",
-    "X-Msh-Version": "2.1.2",
     "x-api-key": "<CRED>",
   },
 }
