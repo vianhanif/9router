@@ -762,7 +762,7 @@ export async function getChartData(period = "7d", options = {}) {
     const startTime = startOfDay.getTime();
     const endTime = startTime + bucketCount * bucketMs;
     const labelFn = (ts) => new Date(ts).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
-    const todayKey = startOfDay.toISOString().slice(0, 10);
+    const todayKey = getLocalDateKey(startOfDay);
     const buckets = Array.from({ length: bucketCount }, (_, i) => ({ label: labelFn(startTime + i * bucketMs), tokens: 0, cost: 0, dateKey: todayKey, hour: i }));
 
     const rows = db.all(
