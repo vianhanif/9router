@@ -76,3 +76,8 @@ gitbook/README.md
 .worktrees/
 # Refactor backup reference (do not bundle/lint)
 open-sse.old/
+
+# workspace build outputs
+apps/dashboard/.next/
+apps/server/node_modules/
+packages/*/node_modules/
