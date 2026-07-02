@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getProviderConnectionById } from "@/lib/localDb";
-import { getProviderModels, PROVIDER_ID_TO_ALIAS } from "open-sse/config/providerModels.js";
+import { getProviderModels, PROVIDER_ID_TO_ALIAS } from "@9router/core/config/providerModels.js";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
 import { UPDATER_CONFIG } from "@/shared/constants/config";
 import { pingModelByKind } from "@/app/api/models/test/ping";

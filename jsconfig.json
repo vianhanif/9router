@@ -4,7 +4,13 @@
     "paths": {
       "@/*": ["./src/*"],
       "open-sse": ["./open-sse"],
-      "open-sse/*": ["./open-sse/*"]
+      "open-sse/*": ["./open-sse/*"],
+      "@9router/core": ["./packages/core"],
+      "@9router/core/*": ["./packages/core/*"],
+      "@9router/db": ["./packages/db/src"],
+      "@9router/db/*": ["./packages/db/src/*"],
+      "@9router/shared": ["./packages/shared/src"],
+      "@9router/shared/*": ["./packages/shared/src/*"]
     },
     "module": "ESNext",
     "moduleResolution": "bundler"

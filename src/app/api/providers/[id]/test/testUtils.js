@@ -2,12 +2,12 @@ import { getProviderConnectionById, updateProviderConnection } from "@/lib/local
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { testProxyUrl } from "@/lib/network/proxyTest";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
-import { getDefaultModel } from "open-sse/config/providerModels.js";
-import { resolveOllamaLocalHost, PROVIDERS } from "open-sse/config/providers.js";
+import { getDefaultModel } from "@9router/core/config/providerModels.js";
+import { resolveOllamaLocalHost, PROVIDERS } from "@9router/core/config/providers.js";
 import {
   refreshProviderCredentials,
   shouldRefreshCredentials,
-} from "open-sse/services/oauthCredentialManager.js";
+} from "@9router/core/services/oauthCredentialManager.js";
 import {
   GEMINI_CONFIG,
   ANTIGRAVITY_CONFIG,
@@ -317,7 +317,7 @@ async function testOAuthConnection(connection, effectiveProxy = null) {
 async function fetchWithConnectionProxy(url, options = {}, effectiveProxy = null) {
   // Vercel relay: forward via relay URL
   if (effectiveProxy?.vercelRelayUrl) {
-    const { proxyAwareFetch } = await import("open-sse/utils/proxyFetch.js");
+    const { proxyAwareFetch } = await import("@9router/core/utils/proxyFetch.js");
     return proxyAwareFetch(url, options, {
       vercelRelayUrl: effectiveProxy.vercelRelayUrl,
     });
@@ -327,7 +327,7 @@ async function fetchWithConnectionProxy(url, options = {}, effectiveProxy = null
     return fetch(url, options);
   }
 
-  const { proxyAwareFetch } = await import("open-sse/utils/proxyFetch.js");
+  const { proxyAwareFetch } = await import("@9router/core/utils/proxyFetch.js");
   return proxyAwareFetch(url, options, {
     connectionProxyEnabled: true,
     connectionProxyUrl: effectiveProxy.connectionProxyUrl,

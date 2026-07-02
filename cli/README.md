@@ -37,27 +37,19 @@
 
 ## ⚡ Quick Start
 
-**Option 1 — npm (recommended for desktop):**
+**From source (recommended):**
 
 ```bash
-npm install -g 9router
-9router
-
-# Or run directly with npx
-npx 9router
+git clone git@github.com:vianhanif/9router.git
+cd 9router
+npm install
+cd cli && npm run build && cd ..
+node cli/cli.js
 ```
 
-**Option 2 — Docker (server/VPS):**
+This fork is not published to Docker Hub. Build from source or see the main repo for Docker setup.
 
-```bash
-docker run -d --name 9router -p 20128:20128 \
-  -v "$HOME/.9router:/app/data" -e DATA_DIR=/app/data \
-  decolua/9router:latest
-```
-
-Published images: [Docker Hub](https://hub.docker.com/r/decolua/9router) • [GHCR](https://github.com/decolua/9router/pkgs/container/9router) (multi-platform amd64/arm64).
-
-🎉 Dashboard opens at `http://localhost:20128`
+🎉 Dashboard opens at `http://localhost:20127` — API at `http://localhost:20128/v1`
 
 **2. Connect a FREE provider (no signup needed):**
 

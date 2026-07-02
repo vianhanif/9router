@@ -4,9 +4,9 @@ import {
 } from "../services/auth.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
-import { handleSttCore } from "open-sse/handlers/sttCore.js";
-import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
-import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
+import { handleSttCore } from "@9router/core/handlers/sttCore.js";
+import { errorResponse, unavailableResponse } from "@9router/core/utils/error.js";
+import { HTTP_STATUS } from "@9router/core/config/runtimeConfig.js";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
 import * as log from "../utils/logger.js";
 

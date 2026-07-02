@@ -1,10 +1,10 @@
 // Claude auto-ping scheduler: warms the 5h window by sending a tiny request right after reset.
-import "open-sse/index.js";
+import "@9router/core/index.js";
 
 import { getSettings, getProviderConnections, updateProviderConnection } from "@/lib/localDb";
-import { getClaudeUsage } from "open-sse/services/usage/claude.js";
-import { CLAUDE_CLI_SPOOF_HEADERS } from "open-sse/providers/shared.js";
-import { proxyAwareFetch } from "open-sse/utils/proxyFetch.js";
+import { getClaudeUsage } from "@9router/core/services/usage/claude.js";
+import { CLAUDE_CLI_SPOOF_HEADERS } from "@9router/core/providers/shared.js";
+import { proxyAwareFetch } from "@9router/core/utils/proxyFetch.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { refreshAndUpdateCredentials } from "@/app/api/usage/[connectionId]/route.js";
 import { CLAUDE_AUTOPING_CONFIG } from "@/shared/constants/config";

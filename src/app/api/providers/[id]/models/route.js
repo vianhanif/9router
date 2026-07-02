@@ -3,9 +3,9 @@ import { getProviderConnectionById } from "@/models";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
 import { GEMINI_CONFIG } from "@/lib/oauth/constants/oauth";
 import { refreshGoogleToken, updateProviderCredentials } from "@/sse/services/tokenRefresh";
-import { resolveOllamaLocalHost } from "open-sse/config/providers.js";
-import { resolveKiroModels } from "open-sse/services/kiroModels.js";
-import { resolveQoderModels } from "open-sse/services/qoderModels.js";
+import { resolveOllamaLocalHost } from "@9router/core/config/providers.js";
+import { resolveKiroModels } from "@9router/core/services/kiroModels.js";
+import { resolveQoderModels } from "@9router/core/services/qoderModels.js";
 
 const GEMINI_CLI_MODELS_URL = "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels";
 

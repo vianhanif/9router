@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getProviderNodeById } from "@/models";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomEmbeddingProvider, AI_PROVIDERS } from "@/shared/constants/providers";
-import { getDefaultModel } from "open-sse/config/providerModels.js";
-import { resolveOllamaLocalHost, resolveXiaomiTokenplanBaseUrl, PROVIDERS } from "open-sse/config/providers.js";
-import { openaiToCommandCodeRequest } from "open-sse/translator/request/openai-to-commandcode.js";
+import { getDefaultModel } from "@9router/core/config/providerModels.js";
+import { resolveOllamaLocalHost, resolveXiaomiTokenplanBaseUrl, PROVIDERS } from "@9router/core/config/providers.js";
+import { openaiToCommandCodeRequest } from "@9router/core/translator/request/openai-to-commandcode.js";
 import { normalizeProviderId } from "@/lib/providerNormalization";
 
 // Probe a webSearch/webFetch provider using its searchConfig/fetchConfig.

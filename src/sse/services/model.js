@@ -1,7 +1,7 @@
 // Re-export from open-sse with localDb integration
 import { getModelAliases, getComboByName, getProviderNodes } from "@/lib/localDb";
-import { parseModel as parseModelCore, resolveModelAliasFromMap, getModelInfoCore } from "open-sse/services/model.js";
-import REGISTRY from "open-sse/providers/registry/index.js";
+import { parseModel as parseModelCore, resolveModelAliasFromMap, getModelInfoCore } from "@9router/core/services/model.js";
+import REGISTRY from "@9router/core/providers/registry/index.js";
 
 // Local provider alias overrides (HMR-friendly, applied on top of open-sse map)
 const LOCAL_PROVIDER_ALIASES = {

@@ -1,8 +1,8 @@
 // Ensure proxyFetch is loaded to patch globalThis.fetch
-import "open-sse/index.js";
+import "@9router/core/index.js";
 
 import { getProviderConnectionById } from "@/lib/localDb";
-import { consumeCodexRateLimitResetCredit } from "open-sse/services/usage.js";
+import { consumeCodexRateLimitResetCredit } from "@9router/core/services/usage.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { refreshAndUpdateCredentials } from "../route.js";
 

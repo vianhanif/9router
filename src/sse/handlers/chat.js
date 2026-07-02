@@ -1,4 +1,4 @@
-import "open-sse/index.js";
+import "@9router/core/index.js";
 
 import {
   getProviderCredentials,
@@ -7,19 +7,19 @@ import {
   extractApiKey,
   isValidApiKey,
 } from "../services/auth.js";
-import { cacheClaudeHeaders } from "open-sse/utils/claudeHeaderCache.js";
+import { cacheClaudeHeaders } from "@9router/core/utils/claudeHeaderCache.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
-import { handleChatCore } from "open-sse/handlers/chatCore.js";
+import { handleChatCore } from "@9router/core/handlers/chatCore.js";
 import { DEFAULT_HEADROOM_URL } from "@/lib/headroom/detect";
-import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
-import { handleComboChat, handleFusionChat } from "open-sse/services/combo.js";
-import { handleBypassRequest } from "open-sse/utils/bypassHandler.js";
-import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
-import { detectFormatByEndpoint } from "open-sse/translator/formats.js";
+import { errorResponse, unavailableResponse } from "@9router/core/utils/error.js";
+import { handleComboChat, handleFusionChat } from "@9router/core/services/combo.js";
+import { handleBypassRequest } from "@9router/core/utils/bypassHandler.js";
+import { HTTP_STATUS } from "@9router/core/config/runtimeConfig.js";
+import { detectFormatByEndpoint } from "@9router/core/translator/formats.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
-import { getProjectIdForConnection } from "open-sse/services/projectId.js";
+import { getProjectIdForConnection } from "@9router/core/services/projectId.js";
 
 /**
  * Handle chat completion request
