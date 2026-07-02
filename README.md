@@ -121,6 +121,38 @@ npm run dev:server      # starts server on port 20128 (~200ms)
 npm run dev:dashboard   # starts dashboard on port 20127 (optional, ~15s)
 ```
 
+### Available Commands
+
+**Shell aliases** (add to `~/.zshrc` or `~/.config/zsh/aliases`):
+
+```bash
+export NINEROUTER_HOME="$HOME/path/to/9router"
+
+# Server (production) — start the bundled server directly
+alias 9r-start='node "$NINEROUTER_HOME/cli/app/server.js"'
+
+# CLI (production) — menu interface using bundled server
+alias 9r-cli='node "$NINEROUTER_HOME/cli/cli.js"'
+
+# CLI (dev) — menu interface using source server (no build needed)
+alias 9r-dev='cd "$NINEROUTER_HOME" && 9ROUTER_DEV=1 node cli/cli.js'
+
+# Server (dev) — raw Hono server from source, no CLI menu
+alias 9r-serve='cd "$NINEROUTER_HOME/apps/server" && node src/index.js'
+
+# Build CLI — esbuild bundle server → cli/app/server.js
+alias 9r-build='cd "$NINEROUTER_HOME/cli" && npm run build'
+
+# Dashboard (production) — build + start dashboard on port 20127
+alias 9r-dash='cd "$NINEROUTER_HOME" && npm run build -w apps/dashboard && npm run start -w apps/dashboard'
+
+# Dashboard (dev) — hot-reload dev server on port 20127
+alias 9r-dash-dev='cd "$NINEROUTER_HOME" && npm run dev -w apps/dashboard'
+
+# Health check
+alias 9r-health='curl -s http://localhost:20128/health | python3 -m json.tool'
+```
+
 Default URLs:
 - Dashboard: `http://localhost:20127`
 - OpenAI-compatible API: `http://localhost:20128/v1`
