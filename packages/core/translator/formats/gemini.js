@@ -306,8 +306,14 @@ function ensureItemsSchema(obj) {
   if (!obj || typeof obj !== "object") return;
   if ("items" in obj) {
     if (obj.type !== "array") obj.type = "array";
-    if (obj.items && typeof obj.items === "object" && !obj.items.type && !obj.items.properties && !("items" in obj.items)) {
-      obj.items.type = "string";
+    if (obj.items && typeof obj.items === "object") {
+      if (!obj.items.type) {
+        if (obj.items.properties || ("items" in obj.items)) {
+          obj.items.type = "object";
+        } else {
+          obj.items.type = "string";
+        }
+      }
     }
   }
   for (const v of Object.values(obj)) {
