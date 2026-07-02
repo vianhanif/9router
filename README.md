@@ -1,36 +1,16 @@
 # 9Router
 
-Fork of [decolua/9router](https://github.com/decolua/9router) — a FREE AI router & token saver for CLI coding tools.  
-Aligned with upstream [v0.5.8](https://github.com/decolua/9router/releases/tag/v0.5.8).
+**FREE AI router & token saver for CLI coding tools.**  
+Stop wasting money, tokens, and hitting limits — route across 40+ providers with smart fallback, auto token savings, and zero downtime.
 
-This fork adds custom enhancements on top of upstream.
-
-### Features Added
+### Features
+- **RTK Token Saver** — Auto-compress `tool_result` content, save 20-40% tokens per request
 - **Monthly usage breakdown** — per-provider token/request stats with month picker and export
 - **Monthly token/cost chart** — daily time-series area chart for token and cost tracking across billing periods
 - **Data management** — retention-based cleanup with preview, summary card, and confirmation modal
-- **Combos import/export** — bulk backup/restore model combos with full strategy config (fallback, round-robin, fusion + judge) to/from JSON files, plus Select All/Deselect All in combo model picker
-- Various fixes and UI improvements
-
----
-
-## Upstream
-
-**Stop wasting money, tokens and hitting limits:**
-
-- ❌ Subscription quota expires unused every month
-- ❌ Rate limits stop you mid-coding
-- ❌ Tool outputs (git diff, grep, ls...) burn tokens fast
-- ❌ Expensive APIs ($20-50/month per provider)
-- ❌ Manual switching between providers
-
-**9Router solves this:**
-
-- ✅ **RTK Token Saver** - Auto-compress tool_result content, save 20-40% tokens per request
-- ✅ **Maximize subscriptions** - Track quota, use every bit before reset
-- ✅ **Auto fallback** - Subscription → Cheap → Free, zero downtime
-- ✅ **Multi-account** - Round-robin between accounts per provider
-- ✅ **Universal** - Works with Claude Code, Codex, Cursor, Cline, any CLI tool
+- **Combos import/export** — bulk backup/restore model combos with full strategy config
+- **Multi-account** — Round-robin between accounts per provider
+- **Universal** — Works with Claude Code, Codex, Cursor, Cline, OpenClaw, any OpenAI-compatible CLI tool
 
 ---
 
@@ -71,7 +51,7 @@ npm install -g 9router
 9router
 ```
 
-🎉 Dashboard opens at `http://localhost:20128`
+🎉 Dashboard opens at `http://localhost:20127` (if running) — API at `http://localhost:20128/v1`
 
 **2. Connect a FREE provider (no signup needed):**
 
@@ -88,25 +68,25 @@ Claude Code/Codex/OpenClaw/Cursor/Cline Settings:
 
 **That's it!** Start coding with FREE AI models.
 
-**Alternative: run from source (this repository):**
-
-This repository package is private (`9router-app`), so source/Docker execution is the expected local development path.
+**Alternative: run from source (monorepo):**
 
 ```bash
-cp .env.example .env
+# Install dependencies
 npm install
-PORT=20128 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run dev
-```
 
-Production mode:
+# Build the CLI package (bundles the server)
+cd cli && npm run build && cd ..
 
-```bash
-npm run build
-PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run start
+# Start via CLI (production mode)
+node cli/cli.js
+
+# Or for development — start from workspace source
+npm run dev:server      # starts server on port 20128
+npm run dev:dashboard   # starts dashboard on port 20127 (optional)
 ```
 
 Default URLs:
-- Dashboard: `http://localhost:20128/dashboard`
+- Dashboard: `http://localhost:20127`
 - OpenAI-compatible API: `http://localhost:20128/v1`
 
 ---
@@ -182,7 +162,7 @@ Default URLs:
 
 </div>
 
-> 🎬 **Made a video about 9Router?** Submit a [Pull Request](https://github.com/decolua/9router/pulls) adding your video to this section — we'll merge it!
+> 🎬 **Made a video about 9Router?** Submit a Pull Request adding your video to this section — we'll merge it!
 
 ---
 
@@ -1074,77 +1054,34 @@ Model: cc/claude-opus-4-7
 ### VPS Deployment
 
 ```bash
-# Clone and install
-git clone https://github.com/decolua/9router.git
+# Clone and build
+git clone <your-repo-url> 9router
 cd 9router
 npm install
-npm run build
+cd cli && npm run build && cd ..
 
-# Configure
+# Configure server
 export JWT_SECRET="your-secure-secret-change-this"
 export INITIAL_PASSWORD="your-password"
 export DATA_DIR="/var/lib/9router"
 export PORT="20128"
 export HOSTNAME="0.0.0.0"
-export NODE_ENV="production"
-export NEXT_PUBLIC_BASE_URL="http://localhost:20128"
-export NEXT_PUBLIC_CLOUD_URL="https://9router.com"
 export API_KEY_SECRET="endpoint-proxy-api-key-secret"
 export MACHINE_ID_SALT="endpoint-proxy-salt"
 
-# Start
-npm run start
+# Start server
+node cli/app/server.js
 
-# Or use PM2
+# Or run via PM2
 npm install -g pm2
-pm2 start npm --name 9router -- start
+pm2 start cli/app/server.js --name 9router-server
 pm2 save
 pm2 startup
 ```
 
 ### Docker
 
-Published images (multi-platform `linux/amd64` + `linux/arm64`):
-- Docker Hub: [`decolua/9router`](https://hub.docker.com/r/decolua/9router)
-- GHCR: [`ghcr.io/decolua/9router`](https://github.com/decolua/9router/pkgs/container/9router)
-
-**Quick start (use published image):**
-
-```bash
-docker run -d \
-  --name 9router \
-  -p 20128:20128 \
-  -v "$HOME/.9router:/app/data" \
-  -e DATA_DIR=/app/data \
-  decolua/9router:latest
-```
-
-→ Open http://localhost:20128
-
-**Build from source (dev):**
-
-```bash
-git clone https://github.com/decolua/9router.git
-cd 9router/app
-docker build -t 9router .
-docker run -d --name 9router -p 20128:20128 \
-  -v "$HOME/.9router:/app/data" -e DATA_DIR=/app/data 9router
-```
-
-**Container defaults:**
-- `PORT=20128`
-- `HOSTNAME=0.0.0.0`
-
-**Useful commands:**
-
-```bash
-docker logs -f 9router
-docker restart 9router
-docker stop 9router && docker rm 9router
-docker pull decolua/9router:latest   # update to latest
-```
-
-**Data persistence:** `$HOME/.9router/db/data.sqlite` on host ↔ `/app/data/db/data.sqlite` in container.
+Coming soon — Dockerfiles are being updated for the monorepo structure. Track progress in [DOCKER.md](DOCKER.md).
 
 ### Environment Variables
 
@@ -1153,32 +1090,29 @@ docker pull decolua/9router:latest   # update to latest
 | `JWT_SECRET` | Auto-generated (`~/.9router/jwt-secret`) | JWT signing secret for dashboard auth cookie (override to share across instances) |
 | `INITIAL_PASSWORD` | `123456` | First login password when no saved hash exists |
 | `DATA_DIR` | `~/.9router` | Main app data location (SQLite at `$DATA_DIR/db/data.sqlite`) |
-| `PORT` | framework default | Service port (`20128` in examples) |
-| `HOSTNAME` | framework default | Bind host (Docker defaults to `0.0.0.0`) |
-| `NODE_ENV` | runtime default | Set `production` for deploy |
+| `PORT` | `20128` | Server port |
+| `HOSTNAME` | `0.0.0.0` | Bind host |
 | `BASE_URL` | `http://localhost:20128` | Server-side internal base URL used by cloud sync jobs |
 | `CLOUD_URL` | `https://9router.com` | Server-side cloud sync endpoint base URL |
-| `NEXT_PUBLIC_BASE_URL` | `http://localhost:3000` | Backward-compatible/public base URL (prefer `BASE_URL` for server runtime) |
-| `NEXT_PUBLIC_CLOUD_URL` | `https://9router.com` | Backward-compatible/public cloud URL (prefer `CLOUD_URL` for server runtime) |
 | `API_KEY_SECRET` | `endpoint-proxy-api-key-secret` | HMAC secret for generated API keys |
 | `MACHINE_ID_SALT` | `endpoint-proxy-salt` | Salt for stable machine ID hashing |
 | `ENABLE_REQUEST_LOGS` | `false` | Enables request/response logs under `logs/` |
 | `AUTH_COOKIE_SECURE` | `false` | Force `Secure` auth cookie (set `true` behind HTTPS reverse proxy) |
 | `REQUIRE_API_KEY` | `false` | Enforce Bearer API key on `/v1/*` routes (recommended for internet-exposed deploys) |
 | `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` | empty | Optional outbound proxy for upstream provider calls |
+| `DASHBOARD_PORT` | `20127` | Dashboard port (separate deployment) |
+| `9ROUTER_DEV` | unset | Set to `1` to run from monorepo source (dev mode) |
 
 Notes:
 - Lowercase proxy variables are also supported: `http_proxy`, `https_proxy`, `all_proxy`, `no_proxy`.
-- `.env` is not baked into Docker image (`.dockerignore`); inject runtime config with `--env-file` or `-e`.
 - On Windows, `APPDATA` can be used for local storage path resolution.
-- `INSTANCE_NAME` appears in older docs/env templates, but is currently not used at runtime.
 
 ### Runtime Files and Storage
 
 - Main app state: `${DATA_DIR}/db/data.sqlite` (SQLite — providers, combos, aliases, keys, settings, usage history)
 - Auto backups: `${DATA_DIR}/db/backups/`
+- Runtime deps (better-sqlite3, sql.js): `${DATA_DIR}/runtime/node_modules/`
 - Optional request/translator logs: `<repo>/logs/...` when `ENABLE_REQUEST_LOGS=true`
-- Both `${DATA_DIR}` and `~/.9router` resolve to the same location in a Docker container — the symlink `/root/.9router -> /app/data` is created at build time.
 
 </details>
 
@@ -1272,7 +1206,8 @@ Notes:
 - Use free tier (Kiro, OpenCode Free, Vertex) for non-critical tasks
 
 **Dashboard opens on wrong port**
-- Set `PORT=20128` and `NEXT_PUBLIC_BASE_URL=http://localhost:20128`
+- Server: Set `PORT=20128` (default) or `PORT=<port>` to change
+- Dashboard (separate deploy): Set `PORT=20127` or use the `DASHBOARD_PORT` env var
 
 **First login not working**
 - Check `INITIAL_PASSWORD` in `.env`
@@ -1286,8 +1221,9 @@ Notes:
 ## 🛠️ Tech Stack
 
 - **Runtime**: Node.js 20+
-- **Framework**: Next.js 16
-- **UI**: React 19 + Tailwind CSS 4
+- **Server**: Hono (ESM, bundled via esbuild)
+- **Dashboard**: Next.js 16 + React 19 + Tailwind CSS 4 (separate deployment)
+- **CLI**: Node.js with esbuild bundling
 - **Database**: SQLite (better-sqlite3 / node:sqlite / sql.js fallback)
 - **Streaming**: Server-Sent Events (SSE)
 - **Auth**: OAuth 2.0 (PKCE) + JWT + API Keys
@@ -1324,8 +1260,7 @@ Authorization: Bearer your-api-key
 ## 📧 Support
 
 - **Website**: [9router.com](https://9router.com)
-- **GitHub**: [github.com/decolua/9router](https://github.com/decolua/9router)
-- **Issues**: [github.com/decolua/9router/issues](https://github.com/decolua/9router/issues)
+- **Issues**: [GitHub Issues](https://github.com/decolua/9router/issues)
 
 ---
 

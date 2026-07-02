@@ -485,17 +485,35 @@ function openBrowser(url) {
   });
 }
 
-// Find standalone server (bundled in bin/app for published package).
-// Prefer custom-server.js (injects real socket IP) when present.
-const standaloneDir = path.join(__dirname, "app");
-const customServerPath = path.join(standaloneDir, "custom-server.js");
-const serverPath = fs.existsSync(customServerPath)
-  ? customServerPath
-  : path.join(standaloneDir, "server.js");
+// Server path resolution
+// Dev mode: set 9ROUTER_DEV=1 when running from monorepo checkout
+// Production: bundled server at cli/app/server.js
+const MONOREPO_SERVER_DIR = path.join(__dirname, "..", "apps", "server");
+const BUNDLED_SERVER_DIR = path.join(__dirname, "app");
 
-if (!fs.existsSync(serverPath)) {
-  console.error("Error: Standalone build not found.");
-  console.error("Please run 'npm run build:cli' first.");
+let standaloneDir, serverPath;
+const extraNMPaths = [];
+
+if (process.env["9ROUTER_DEV"]) {
+  // Dev mode — run server from source
+  if (!fs.existsSync(path.join(MONOREPO_SERVER_DIR, "package.json"))) {
+    console.error("Error: 9ROUTER_DEV=1 but apps/server/ not found.");
+    console.error("Run from the 9router monorepo root.");
+    process.exit(1);
+  }
+  standaloneDir = MONOREPO_SERVER_DIR;
+  serverPath = path.join(MONOREPO_SERVER_DIR, "src", "index.js");
+  // Add monorepo root node_modules for @9router/* workspace resolution
+  const monorepoRoot = path.resolve(MONOREPO_SERVER_DIR, "..");
+  extraNMPaths.push(path.join(monorepoRoot, "node_modules"));
+} else if (fs.existsSync(path.join(BUNDLED_SERVER_DIR, "server.js"))) {
+  // Production mode — bundled server
+  standaloneDir = BUNDLED_SERVER_DIR;
+  serverPath = path.join(BUNDLED_SERVER_DIR, "server.js");
+} else {
+  console.error("Error: Server not found.");
+  console.error("In dev mode, run with 9ROUTER_DEV=1 from the 9router monorepo root.");
+  console.error("In production, run 'npm run build' in the cli/ directory first.");
   process.exit(1);
 }
 
@@ -558,7 +576,10 @@ const RESTART_RESET_MS = 30000; // Reset counter if alive > 30s
 
 function startServer(latestVersion) {
   const displayHost = getDisplayHost();
-  const url = `http://${displayHost}:${port}/dashboard`;
+  // Dashboard runs on separate port after monorepo split
+  const DASHBOARD_PORT = 20127;
+  const dashboardHost = process.env.DASHBOARD_HOST || displayHost;
+  const url = `http://${dashboardHost}:${DASHBOARD_PORT}`;
   // Surface real network exposure when bound to all interfaces (default 0.0.0.0).
   if (host === DEFAULT_HOST) {
     const lanIp = getLanIp();
@@ -580,7 +601,7 @@ function startServer(latestVersion) {
       detached: true,
       windowsHide: true,
       env: {
-        ...buildEnvWithRuntime(process.env),
+        ...buildEnvWithRuntime(process.env, extraNMPaths),
         PORT: port.toString(),
         HOSTNAME: host
       }
