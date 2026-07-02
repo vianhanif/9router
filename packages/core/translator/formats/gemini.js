@@ -300,6 +300,21 @@ function ensureObjectType(obj) {
   for (const v of Object.values(obj)) if (v && typeof v === "object") ensureObjectType(v);
 }
 
+// Ensure items schemas are valid: set type=array when items present,
+// give items a default type when it's empty/missing.
+function ensureItemsSchema(obj) {
+  if (!obj || typeof obj !== "object") return;
+  if ("items" in obj) {
+    if (obj.type !== "array") obj.type = "array";
+    if (obj.items && typeof obj.items === "object" && !obj.items.type && !obj.items.properties && !("items" in obj.items)) {
+      obj.items.type = "string";
+    }
+  }
+  for (const v of Object.values(obj)) {
+    if (v && typeof v === "object") ensureItemsSchema(v);
+  }
+}
+
 // Clean JSON Schema for Antigravity API compatibility - removes unsupported keywords recursively
 export function cleanJSONSchemaForAntigravity(schema) {
   if (!schema || typeof schema !== "object") return schema;
@@ -318,6 +333,9 @@ export function cleanJSONSchemaForAntigravity(schema) {
 
   // Phase 2.5: Infer missing type=object when properties exist (Gemini requirement)
   ensureObjectType(cleaned);
+
+  // Phase 2.6: Ensure valid items schemas — type=array + items has a type
+  ensureItemsSchema(cleaned);
 
   // Phase 3: Remove all unsupported keywords at ALL levels (including inside arrays)
   removeUnsupportedKeywords(cleaned, UNSUPPORTED_SCHEMA_CONSTRAINTS);

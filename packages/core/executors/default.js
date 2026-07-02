@@ -92,6 +92,17 @@ export class DefaultExecutor extends BaseExecutor {
       stripUnsupportedParams(this.provider, model, transformed);
     }
 
+    // Strip reasoning_content from assistant messages before sending.
+    // Some providers (e.g. Groq) reject it. injectReasoningContent below
+    // re-adds it only for providers/models that require it (deepseek, kimi).
+    if (transformed?.messages) {
+      for (const msg of transformed.messages) {
+        if (msg.role === "assistant") {
+          delete msg.reasoning_content;
+        }
+      }
+    }
+
     return injectReasoningContent({ provider: this.provider, model, body: transformed });
   }
 
