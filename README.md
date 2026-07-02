@@ -89,6 +89,42 @@ Default URLs:
 - Dashboard: `http://localhost:20127`
 - OpenAI-compatible API: `http://localhost:20128/v1`
 
+> **Architecture: separate API server + dashboard**
+>
+> The API server (port 20128) and dashboard UI (port 20127) run as **separate processes**
+> with distinct lifecycles and deployment models:
+>
+> | Concern | API Server (port 20128) | Dashboard (port 20127) |
+> |---------|------------------------|------------------------|
+> | **Framework** | Hono (lightweight, 65KB) | Next.js 16 (~300MB with deps) |
+> | **Distribution** | Bundled into CLI package via esbuild | Separate deployment (npm run / Docker) |
+> | **Startup** | Spawned by `9router` CLI on demand | Started independently |
+> | **Size in package** | ~2.5MB single CJS file | Not included (would add ~200MB) |
+> | **Required for routing** | ✅ Yes — handles all API requests | ❌ No — only needed for UI |
+>
+> **Why this separation:**
+>
+> 1. **CLI package stays lean** — Bundling the Hono server adds ~2.5MB to the npm package.
+>    The old Next.js monolith added ~200MB. Smaller package = faster installs, less disk usage,
+>    simpler publishing pipeline.
+>
+> 2. **Zero UI dependency for routing** — The core use case (routing LLM requests, token
+>    savings, provider fallback) needs zero browser UI. Users who only need the API endpoint
+>    never install Next.js/React. Dashboard-only features (provider management, usage charts,
+>    settings) are entirely optional.
+>
+> 3. **Independent lifecycle** — Each service can be updated, restarted, or scaled without
+>    affecting the other. A dashboard deploy doesn't interrupt active LLM requests. A server
+>    bug doesn't take down the UI.
+>
+> 4. **Framework isolation** — The routing engine is decoupled from Next.js. No more
+>    Next.js version bumps blocking server updates, or server issues breaking the dashboard.
+>    The Hono server can be maintained independently of the dashboard framework.
+>
+> 5. **Faster development** — `npm run dev:server` starts in ~200ms (no webpack, no React).
+>    The dashboard dev server takes ~15s. Separating them means faster iteration on the
+>    core routing logic without waiting for the UI to compile.
+
 ---
 
 ## Video Guides
