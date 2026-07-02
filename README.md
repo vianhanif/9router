@@ -157,8 +157,6 @@ Default URLs:
 - Dashboard: `http://localhost:20127`
 - OpenAI-compatible API: `http://localhost:20128/v1`
 
-> **Architecture: separate API server + dashboard**
->
 ---
 
 ## 📄 License
