@@ -3,6 +3,8 @@
 **FREE AI router & token saver for CLI coding tools.**  
 Stop wasting money, tokens, and hitting limits — route across 40+ providers with smart fallback, auto token savings, and zero downtime.
 
+Based on [decolua/9router](https://github.com/decolua/9router) — this fork adds monorepo structure, Hono server (decoupled from Next.js), esbuild CLI bundling, and other enhancements.
+
 ### Features
 - **RTK Token Saver** — Auto-compress `tool_result` content, save 20-40% tokens per request
 - **Monthly usage breakdown** — per-provider token/request stats with month picker and export
@@ -44,20 +46,28 @@ Result: Never stop coding, minimal cost + 20-40% token savings via RTK
 
 ## ⚡ Quick Start
 
-**1. Install globally:**
+**1. Clone and set up:**
 
 ```bash
-npm install -g 9router
-9router
+git clone git@github.com:vianhanif/9router.git
+cd 9router
+npm install
+cd cli && npm run build && cd ..
 ```
 
-🎉 Dashboard opens at `http://localhost:20127` (if running) — API at `http://localhost:20128/v1`
+**2. Start the server:**
 
-**2. Connect a FREE provider (no signup needed):**
+```bash
+node cli/cli.js
+```
 
-Dashboard → Providers → Connect **Kiro AI** (free Claude unlimited) or **OpenCode Free** (no auth) → Done!
+API available at `http://localhost:20128/v1`
 
-**3. Use in your CLI tool:**
+**3. Connect a FREE provider (no signup needed):**
+
+Open the dashboard at `http://localhost:20127` → Providers → Connect **Kiro AI** (free Claude unlimited) or **OpenCode Free** (no auth) → Done!
+
+**4. Use in your CLI tool:**
 
 ```
 Claude Code/Codex/OpenClaw/Cursor/Cline Settings:
@@ -68,21 +78,11 @@ Claude Code/Codex/OpenClaw/Cursor/Cline Settings:
 
 **That's it!** Start coding with FREE AI models.
 
-**Alternative: run from source (monorepo):**
+**Pro tip — development mode:** After cloning, run from workspace source without building:
 
 ```bash
-# Install dependencies
-npm install
-
-# Build the CLI package (bundles the server)
-cd cli && npm run build && cd ..
-
-# Start via CLI (production mode)
-node cli/cli.js
-
-# Or for development — start from workspace source
-npm run dev:server      # starts server on port 20128
-npm run dev:dashboard   # starts dashboard on port 20127 (optional)
+npm run dev:server      # starts server on port 20128 (~200ms)
+npm run dev:dashboard   # starts dashboard on port 20127 (optional, ~15s)
 ```
 
 Default URLs:
