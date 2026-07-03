@@ -47,8 +47,7 @@ Based on [decolua/9router](https://github.com/decolua/9router) — this fork add
 - **Monthly token/cost chart** — daily time-series area chart for token and cost tracking across billing periods
 - **Data management** — retention-based cleanup with preview, summary card, and confirmation modal
 - **Combos import/export** — bulk backup/restore model combos with full strategy config
-- **Multi-account** — Round-robin between accounts per provider
-- **Universal** — Works with Claude Code, Codex, Cursor, Cline, OpenClaw, any OpenAI-compatible CLI tool
+- **Separate LLM API Server & 9router Dashboard** - skip heavy next.js buildup for quick-start serving agent tools
 
 ---
 
