@@ -10,7 +10,7 @@ Based on [decolua/9router](https://github.com/decolua/9router) — this fork add
 > The API server (port 20128) and dashboard UI (port 20127) run as **separate processes**
 > with distinct lifecycles and deployment models:
 >
-> | Concern | API Server (port 20128) | Dashboard (port 20127) |
+> | Concern | API Server (port 20128) | Dashboard (port 3000) |
 > |---------|------------------------|------------------------|
 > | **Framework** | Hono (lightweight, 65KB) | Next.js 16 (~300MB with deps) |
 > | **Distribution** | Bundled into CLI package via esbuild | Separate deployment (npm run / Docker) |
@@ -100,7 +100,7 @@ API available at `http://localhost:20128/v1`
 
 **3. Connect a FREE provider (no signup needed):**
 
-Open the dashboard at `http://localhost:20127` → Providers → Connect **Kiro AI** (free Claude unlimited) or **OpenCode Free** (no auth) → Done!
+Open the dashboard at `http://localhost:3000` → Providers → Connect **Kiro AI** (free Claude unlimited) or **OpenCode Free** (no auth) → Done!
 
 **4. Use in your CLI tool:**
 
@@ -117,7 +117,7 @@ Claude Code/Codex/OpenClaw/Cursor/Cline Settings:
 
 ```bash
 npm run dev:server      # starts server on port 20128 (~200ms)
-npm run dev:dashboard   # starts dashboard on port 20127 (optional, ~15s)
+npm run dev:dashboard   # starts dashboard on port 3000 (optional, ~15s)
 ```
 
 ### Available Commands
@@ -153,7 +153,7 @@ alias 9r-health='curl -s http://localhost:20128/health | python3 -m json.tool'
 ```
 
 Default URLs:
-- Dashboard: `http://localhost:20127`
+- Dashboard: `http://localhost:3000`
 - OpenAI-compatible API: `http://localhost:20128/v1`
 
 ---
