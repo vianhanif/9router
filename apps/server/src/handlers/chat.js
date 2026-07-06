@@ -54,7 +54,10 @@ export async function handleChat(request, clientRawRequest = null) {
   const msgCount = body.messages?.length || body.input?.length || 0;
   const toolCount = body.tools?.length || 0;
   const effort = body.reasoning_effort || body.reasoning?.effort || null;
-  log.request("POST", `${url.pathname} | ${modelStr} | ${msgCount} msgs${toolCount ? ` | ${toolCount} tools` : ""}${effort ? ` | effort=${effort}` : ""}`);
+
+  // Stats & logging
+  const _startTime = Date.now();
+  const _reqId = log.request({ method: "POST", path: url.pathname, model: modelStr, msgs: msgCount, tools: toolCount, extra: effort ? `effort=${effort}` : null });
 
   // Log API key (masked)
   const authHeader = request.headers.get("Authorization");
@@ -71,24 +74,31 @@ export async function handleChat(request, clientRawRequest = null) {
   if (settings.requireApiKey) {
     if (!apiKey) {
       log.warn("AUTH", "Missing API key (requireApiKey=true)");
+      log.requestError({ id: _reqId, status: HTTP_STATUS.UNAUTHORIZED, error: "Missing API key" });
       return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key");
     }
     const valid = await isValidApiKey(apiKey);
     if (!valid) {
       log.warn("AUTH", "Invalid API key (requireApiKey=true)");
+      log.requestError({ id: _reqId, status: HTTP_STATUS.UNAUTHORIZED, error: "Invalid API key" });
       return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
     }
   }
 
   if (!modelStr) {
     log.warn("CHAT", "Missing model");
+    log.requestError({ id: _reqId, status: HTTP_STATUS.BAD_REQUEST, error: "Missing model" });
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing model");
   }
 
   // Bypass naming/warmup requests before combo rotation to avoid wasting rotation slots
   const userAgent = request?.headers?.get("user-agent") || "";
   const bypassResponse = handleBypassRequest(body, modelStr, userAgent, !!settings.ccFilterNaming);
-  if (bypassResponse) return bypassResponse.response || bypassResponse;
+  if (bypassResponse) {
+    const _b = bypassResponse.response || bypassResponse;
+    log.requestSummary({ id: _reqId, status: _b.status || 200, duration: Date.now() - _startTime });
+    return _b;
+  }
 
   // Check if model is a combo (has multiple models with fallback)
   const comboModels = await getComboModels(modelStr);
@@ -100,7 +110,7 @@ export async function handleChat(request, clientRawRequest = null) {
 
     if (comboStrategy === "fusion") {
       log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: fusion)`);
-      return handleFusionChat({
+      const _resp = await handleFusionChat({
         body,
         models: comboModels,
         handleSingleModel: (b, m, isPanel) => {
@@ -116,11 +126,13 @@ export async function handleChat(request, clientRawRequest = null) {
         judgeModel: comboStrategies[modelStr]?.judgeModel,
         tuning: comboStrategies[modelStr]?.fusionTuning,
       });
+      log.requestSummary({ id: _reqId, status: _resp.status, duration: Date.now() - _startTime });
+      return _resp;
     }
 
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
     log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
-    return handleComboChat({
+    const _resp = await handleComboChat({
       body,
       models: comboModels,
       handleSingleModel: (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
@@ -129,10 +141,14 @@ export async function handleChat(request, clientRawRequest = null) {
       comboStrategy,
       comboStickyLimit
     });
+    log.requestSummary({ id: _reqId, status: _resp.status, duration: Date.now() - _startTime });
+    return _resp;
   }
 
   // Single model request
-  return handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey);
+  const _resp = await handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey);
+  log.requestSummary({ id: _reqId, status: _resp.status, duration: Date.now() - _startTime });
+  return _resp;
 }
 
 /**

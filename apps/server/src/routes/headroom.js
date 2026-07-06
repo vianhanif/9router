@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { getSettings } from "@9router/db";
-import { getConsistentMachineId } from "@9router/shared/utils/machineId";
+import { getConsistentMachineId } from "@9router/shared/utils/machineId.js";
 import {
   getHeadroomStatus,
   startHeadroomProxy,

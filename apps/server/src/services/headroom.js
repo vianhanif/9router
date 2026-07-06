@@ -11,7 +11,7 @@ const PID_FILE = path.join(HEADROOM_DIR, "proxy.pid");
 const LOG_FILE = path.join(HEADROOM_DIR, "proxy.log");
 const DEFAULT_PORT = 8787;
 const STARTUP_TIMEOUT_MS = 8000;
-const HEADROOM_HEALTH_TIMEOUT_MS = 1500;
+const HEADROOM_HEALTH_TIMEOUT_MS = 300;
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0"]);
 
 const EXTRA_BINS = [

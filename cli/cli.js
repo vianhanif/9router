@@ -88,7 +88,9 @@ let host = DEFAULT_HOST;
 let noBrowser = false;
 let skipUpdate = false;
 let showLog = false;
+let showTui = false;
 let trayMode = false;
+let debugMode = false;
 
 for (let i = 0; i < args.length; i++) {
   if (args[i] === "--port" || args[i] === "-p") {
@@ -103,6 +105,11 @@ for (let i = 0; i < args.length; i++) {
     showLog = true;
   } else if (args[i] === "--skip-update") {
     skipUpdate = true;
+  } else if (args[i] === "--tui") {
+    showTui = true;
+  } else if (args[i] === "--debug" || args[i] === "-d") {
+    debugMode = true;
+    process.env["9ROUTER_DEBUG"] = "1";
   } else if (args[i] === "--tray" || args[i] === "-t") {
     trayMode = true;
     process.env.TRAY_MODE = "1";
@@ -115,7 +122,9 @@ Options:
   -H, --host <host>   Host to bind (default: ${DEFAULT_HOST})
   -n, --no-browser    Don't open browser automatically
   -l, --log           Show server logs (default: hidden)
+  -d, --debug         Enable debug (🐛) logging
   -t, --tray          Run in system tray mode (background)
+  --tui               Live TUI dashboard (server must be running)
   --skip-update       Skip auto-update check
   -h, --help          Show this help message
   -v, --version       Show version
@@ -517,14 +526,20 @@ if (process.env["9ROUTER_DEV"]) {
   process.exit(1);
 }
 
-// Check for updates FIRST, then start server
-checkForUpdate().then((latestVersion) => {
-  killAllAppProcesses(port).then(() => {
-    return killProcessOnPort(port);
-  }).then(() => {
-    startServer(latestVersion);
+// TUI mode: skip update check, start dashboard immediately
+if (showTui) {
+  const { startDashboard } = require("./src/cli/statusDashboard");
+  startDashboard({ port, host });
+} else {
+  // Check for updates FIRST, then start server
+  checkForUpdate().then((latestVersion) => {
+    killAllAppProcesses(port).then(() => {
+      return killProcessOnPort(port);
+    }).then(() => {
+      startServer(latestVersion);
+    });
   });
-});
+}
 
 // Show interface selection menu
 async function showInterfaceMenu(latestVersion) {

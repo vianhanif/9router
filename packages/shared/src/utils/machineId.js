@@ -1,8 +1,9 @@
-import { machineIdSync } from 'node-machine-id';
+import mId from 'node-machine-id';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import os from 'node:os';
+const { machineIdSync } = mId;
 
 // Default DATA_DIR for standalone use. Override via DATA_DIR env var.
 const DATA_DIR = process.env.DATA_DIR || path.join(os.homedir(), '.9router');
