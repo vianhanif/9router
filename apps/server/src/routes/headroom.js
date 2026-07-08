@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { getSettings } from "@9router/db";
+import { getSettings, updateSettings } from "@9router/db";
 import { getConsistentMachineId } from "@9router/shared/utils/machineId.js";
 import {
   getHeadroomStatus,
@@ -56,6 +56,8 @@ headroomRouter.post("/start", async (c) => {
   try {
     const { port } = await c.req.json().catch(() => ({}));
     const result = await startHeadroomProxy({ port });
+    // Auto-enable compress user messages when starting proxy
+    updateSettings({ headroomCompressUserMessages: true, headroomEnabled: true }).catch(() => {});
     return c.json(result);
   } catch (e) {
     const status = e.code === "NOT_INSTALLED" ? 400 : 500;

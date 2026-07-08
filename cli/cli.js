@@ -47,13 +47,6 @@ const { ensureSqliteRuntime, buildEnvWithRuntime } = require("./hooks/sqliteRunt
 const { ensureTrayRuntime } = require("./hooks/trayRuntime");
 const args = process.argv.slice(2);
 
-// Self-heal SQLite runtime deps (sql.js + better-sqlite3) into ~/.9router/runtime
-// so the server can resolve them via NODE_PATH. Best-effort — sql.js is required,
-// better-sqlite3 is optional. Logs to stderr only on failure.
-try { ensureSqliteRuntime({ silent: true }); } catch {}
-
-// Self-heal tray runtime (systray for macOS/Linux only). Windows skipped.
-try { ensureTrayRuntime({ silent: true }); } catch {}
 
 // Configuration constants
 const APP_NAME = pkg.name; // Use from package.json
@@ -88,7 +81,8 @@ let host = DEFAULT_HOST;
 let noBrowser = false;
 let skipUpdate = false;
 let showLog = false;
-let showTui = false;
+let showJson = false;
+let showStatusOnly = false;
 let trayMode = false;
 let debugMode = false;
 
@@ -105,8 +99,10 @@ for (let i = 0; i < args.length; i++) {
     showLog = true;
   } else if (args[i] === "--skip-update") {
     skipUpdate = true;
-  } else if (args[i] === "--tui") {
-    showTui = true;
+  } else if (args[i] === "--json") {
+    showJson = true;
+  } else if (args[i] === "--status") {
+    showStatusOnly = true;
   } else if (args[i] === "--debug" || args[i] === "-d") {
     debugMode = true;
     process.env["9ROUTER_DEBUG"] = "1";
@@ -124,7 +120,8 @@ Options:
   -l, --log           Show server logs (default: hidden)
   -d, --debug         Enable debug (🐛) logging
   -t, --tray          Run in system tray mode (background)
-  --tui               Live TUI dashboard (server must be running)
+  --json              Print status JSON (token savers, providers, combos)
+  --status            Print token saver status JSON only
   --skip-update       Skip auto-update check
   -h, --help          Show this help message
   -v, --version       Show version
@@ -526,10 +523,9 @@ if (process.env["9ROUTER_DEV"]) {
   process.exit(1);
 }
 
-// TUI mode: skip update check, start dashboard immediately
-if (showTui) {
-  const { startDashboard } = require("./src/cli/statusDashboard");
-  startDashboard({ port, host });
+// JSON mode: fetch status summary, print JSON, exit
+if (showJson || showStatusOnly) {
+  fetchStatusJson(port, host, showStatusOnly);
 } else {
   // Check for updates FIRST, then start server
   checkForUpdate().then((latestVersion) => {
@@ -539,6 +535,30 @@ if (showTui) {
       startServer(latestVersion);
     });
   });
+}
+
+async function fetchStatusJson(port, host, statusOnly) {
+  const baseUrl = `http://${host === "0.0.0.0" ? "localhost" : host}:${port}`;
+  try {
+    const res = await fetch(`${baseUrl}/api/status/summary`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) {
+      console.error(JSON.stringify({ error: `Server returned ${res.status}`, url: `${baseUrl}/api/status/summary` }));
+      process.exit(1);
+    }
+    const data = await res.json();
+    if (statusOnly) {
+      console.log(JSON.stringify(data.tokenSavers || null, null, 2));
+    } else {
+      console.log(JSON.stringify({
+        tokenSavers: data.tokenSavers || null,
+        providers: data.providers || [],
+        combos: data.combos || [],
+      }, null, 2));
+    }
+  } catch (e) {
+    console.error(JSON.stringify({ error: e.message, url: `${baseUrl}/api/status/summary`, hint: "Is the 9router server running?" }));
+    process.exit(1);
+  }
 }
 
 // Show interface selection menu
@@ -590,6 +610,13 @@ const MAX_RESTARTS = 2;
 const RESTART_RESET_MS = 30000; // Reset counter if alive > 30s
 
 function startServer(latestVersion) {
+  // Self-heal SQLite runtime deps (sql.js + better-sqlite3) into ~/.9router/runtime
+  // so the server can resolve them via NODE_PATH. Best-effort — sql.js is required,
+  // better-sqlite3 is optional. Logs to stderr only on failure.
+  try { ensureSqliteRuntime({ silent: true }); } catch {}
+  // Self-heal tray runtime (systray for macOS/Linux only). Windows skipped.
+  try { ensureTrayRuntime({ silent: true }); } catch {}
+
   const displayHost = getDisplayHost();
   // Dashboard runs on separate port after monorepo split
   const DASHBOARD_PORT = 20127;
