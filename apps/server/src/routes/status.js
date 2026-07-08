@@ -1,33 +1,23 @@
 import { Hono } from "hono";
 import { getSettings, getProviderConnections, getCombos, getProviderNodes } from "@9router/db";
-import { getHeadroomStatus, DEFAULT_HEADROOM_URL, getManagedPid } from "../services/headroom.js";
 
 const statusRouter = new Hono();
 
 /**
  * GET /api/status/summary
- * Aggregated dashboard data: token savers, active providers, combos, headroom
+ * Aggregated dashboard data: token savers, active providers, combos
  */
 statusRouter.get("/summary", async (c) => {
   try {
     const settings = await getSettings().catch(() => ({}));
-    const headroomUrl = settings.headroomUrl || DEFAULT_HEADROOM_URL;
-    const [connections, combos, nodes, headroomRes] = await Promise.all([
+    const [connections, combos, nodes] = await Promise.all([
       getProviderConnections({ isActive: true }).catch(() => []),
       getCombos().catch(() => []),
       getProviderNodes().catch(() => []),
-      getHeadroomStatus(headroomUrl).catch(() => ({ status: "unknown" })),
     ]);
 
     // Token saver tools
     const tokenSavers = {
-      headroom: {
-        enabled: !!settings.headroomEnabled,
-        url: settings.headroomUrl || null,
-        compressUserMessages: !!settings.headroomCompressUserMessages,
-        status: headroomRes.status || (headroomRes.running ? "healthy" : "inactive"),
-        managedPid: headroomRes.managedPid || getManagedPid() || null,
-      },
       caveman: {
         enabled: !!settings.cavemanEnabled,
         level: settings.cavemanLevel || "full",

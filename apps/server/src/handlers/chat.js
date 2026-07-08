@@ -11,7 +11,6 @@ import { cacheClaudeHeaders } from "@9router/core/utils/claudeHeaderCache.js";
 import { getSettings } from "@9router/db";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { handleChatCore } from "@9router/core/handlers/chatCore.js";
-const DEFAULT_HEADROOM_URL = process.env.HEADROOM_URL || "http://localhost:8787";
 import { errorResponse, unavailableResponse } from "@9router/core/utils/error.js";
 import { handleComboChat, handleFusionChat } from "@9router/core/services/combo.js";
 import { handleBypassRequest } from "@9router/core/utils/bypassHandler.js";
@@ -268,9 +267,6 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       apiKey,
       ccFilterNaming: !!chatSettings.ccFilterNaming,
       rtkEnabled: !!chatSettings.rtkEnabled,
-      headroomEnabled: !!chatSettings.headroomEnabled,
-      headroomUrl: chatSettings.headroomUrl || DEFAULT_HEADROOM_URL,
-      headroomCompressUserMessages: !!chatSettings.headroomCompressUserMessages,
       cavemanEnabled: !!chatSettings.cavemanEnabled,
       cavemanLevel: chatSettings.cavemanLevel || "full",
       ponytailEnabled: !!chatSettings.ponytailEnabled,
