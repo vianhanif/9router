@@ -9,6 +9,19 @@ The integration path:
 chat.js → chatCore.js → rtk/headroom.js → HTTP POST localhost:8787/v1/compress
 ```
 
+## Options evaluated
+
+Six approaches were evaluated before deciding on removal:
+
+| Option | Description | Verdict |
+|--------|-------------|---------|
+| A: Keep as-is | `compressWithHeadroom()` always 404s silently | ❌ No-op |
+| B: Fix URL | No `/v1/compress` endpoint exists in headroom proxy | ❌ Not possible |
+| C: Fork headroom | Add custom `/v1/compress` route to fork | ❌ Scope creep |
+| D: Microserver | Spin up Python FastAPI microserver with transformers + torch | ❌ ~2.5GB deps, heavy infra |
+| E: Proxy route | Route provider requests through headroom proxy | ❌ Only OpenAI/Anthropic/Gemini, not custom providers |
+| **F: Remove** | Delete dead headroom code, document findings, rely on RTK | ✅ Done |
+
 ## Why it never worked
 
 ### Root cause: wrong API
@@ -23,7 +36,7 @@ Headroom v0.5.4 proxy **does not expose a `/v1/compress` endpoint**. The proxy w
 
 There is no standalone compression-as-a-service endpoint. Every `compressWithHeadroom()` call silently hit a 404 → returned null → no compression, no error logs visible to the user.
 
-### Option E (proxy route) — incompatible with 9Router providers
+### Option E ruled out — incompatible with 9Router providers
 
 9Router's providers use custom API paths that don't match headroom's explicit routes:
 
@@ -35,7 +48,7 @@ There is no standalone compression-as-a-service endpoint. Every `compressWithHea
 
 Even when the path matched, headroom hard-forwards to OpenAI/Anthropic/Gemini — not to 9Router's custom provider backends.
 
-### Option D (microserver) — heavy and unverified
+### Option D ruled out — heavy and unverified
 
 `headroom.compress()` uses HuggingFace transformers / LLMLingua for ML-powered compression. These deps aren't in the pipx venv. Installing requires:
 
@@ -62,17 +75,6 @@ Every request triggered a silent failure. No compression, no errors surfaced to 
 - Claude tool result blocks
 - OpenAI Responses tool output
 - Kiro format tool output
-
-## Options evaluated
-
-| Option | Description | Verdict |
-|--------|-------------|---------|
-| A: Keep as-is | `compressWithHeadroom()` always 404s silently | ❌ No-op |
-| B: Fix URL | No `/v1/compress` endpoint exists in headroom proxy | ❌ Not possible |
-| C: Fork headroom | Add custom `/v1/compress` route to fork | ❌ Scope creep |
-| D: Microserver | Spin up Python FastAPI microserver with transformers + torch | ❌ ~2.5GB deps, heavy infra |
-| E: Proxy route | Route provider requests through headroom proxy | ❌ Only OpenAI/Anthropic/Gemini, not custom providers |
-| **F: Remove** | Delete dead headroom code, document findings, rely on RTK | ✅ Done |
 
 ## Files removed
 
