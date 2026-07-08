@@ -1263,20 +1263,13 @@ export default function APIPageClient({ machineId }) {
                 >
                   (Headroom)
                 </a>
+                <span className="text-xs font-normal text-warning ml-2">
+                  (inactive — proxy not used by 9Router)
+                </span>
               </p>
-              <span className={`text-xs px-2 py-0.5 rounded ${headroomRunning ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}>
-                {headroomStatusLabel}
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowHeadroomInstallModal(true)}
-                className="text-xs text-primary underline hover:opacity-80"
-              >
-                  {headroomRunning ? "Manage" : "Setup"}
-              </button>
             </div>
             <p className="text-sm text-text-muted mt-1">
-              Compress prompts via /v1/compress before routing to the model
+              Headroom proxy only compresses for OpenAI/Anthropic/Gemini clients routed through it — 9Router sends requests directly to providers. See notes/headroom-integration-findings.md.
             </p>
           </div>
           <Toggle
