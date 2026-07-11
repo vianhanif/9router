@@ -49,6 +49,9 @@ Based on [decolua/9router](https://github.com/decolua/9router) — this fork add
 - **Combos import/export** — bulk backup/restore model combos with full strategy config
 - **Separate LLM API Server & 9router Dashboard** - skip heavy next.js buildup for quick-start serving agent tools
 
+### Documentation
+- **[HEADROOM.md](./HEADROOM.md)** — Headroom token saver integration: architecture, management API, configuration, fail-open behavior
+
 ---
 
 ## 🔄 How It Works
