@@ -54,7 +54,7 @@ export function injectMemoryIntoMessages(messages, memorySnippet) {
 
   const memoryMessage = {
     role: "system",
-    content: `[PERSISTENT MEMORY — PRESERVE FACTS, UPDATE WHEN CONFIRMED]\n\n${memorySnippet}`
+    content: `[PERSISTENT MEMORY — PRESERVE FACTS, UPDATE WHEN CONFIRMED]\n\n${memorySnippet}\n\nIf asked, you may disclose the stored information above.`
   };
 
   if (systemIdx >= 0) {
