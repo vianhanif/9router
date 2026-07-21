@@ -29,13 +29,17 @@ import { formatMemorySnippet, injectMemoryIntoMessages } from "./inject.js";
 export async function loadMemoryForRequest(apiKey, messages) {
   const pool = detectMemoryPool(apiKey);
   const { memory, user } = await loadMemoryFiles(pool);
+  const memoryEntries = (memory || "").split("§").filter(Boolean).length;
+  const userEntries = (user || "").split("§").filter(Boolean).length;
   const snippet = formatMemorySnippet(memory, user);
 
   if (snippet) {
     injectMemoryIntoMessages(messages, snippet);
+    console.log(`[MEMORY] LOAD pool="${pool}" memory=${memoryEntries}entries/${(memory||"").length}chars user=${userEntries}entries/${(user||"").length}chars injected=true`);
     return { injected: true, pool };
   }
 
+  console.log(`[MEMORY] LOAD pool="${pool}" memory=${memoryEntries}entries/${(memory||"").length}chars user=${userEntries}entries/${(user||"").length}chars injected=false`);
   return { injected: false, pool };
 }
 
@@ -49,6 +53,8 @@ export async function loadMemoryForRequest(apiKey, messages) {
 export async function tryExtractFromResponse(apiKey, responseContent) {
   const pool = detectMemoryPool(apiKey);
   const { extractAndStoreFromResponse } = await import("./extract.js");
+  console.log(`[MEMORY] EXTRACT_START pool="${pool}" responseLen=${responseContent?.length||0}`);
   const result = await extractAndStoreFromResponse(responseContent, pool);
+  console.log(`[MEMORY] EXTRACT_DONE pool="${pool}" memoryStored=${result.memoryStored} userStored=${result.userStored} attempted=${result.attempted}`);
   return { ...result, pool };
 }

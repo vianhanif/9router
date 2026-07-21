@@ -68,51 +68,8 @@ export function isWorthStoring(entry, type) {
  * 
  * @param {string} responseContent - assistant's response text
  * @param {string} pool - memory pool name
- * @returns {Promise<{memoryStored: boolean, userStored: boolean, attempted: boolean}>}
  */
-export async function extractAndStoreFromResponse(responseContent, pool) {
-  const suggestions = parseMemorySuggestions(responseContent);
-  
-  // Check if LLM attempted extraction (markers present), regardless of whether we stored them
-  const attempted = !!(suggestions.memory || suggestions.user);
-  
-  if (!suggestions.memory && !suggestions.user) {
-    return { memoryStored: false, userStored: false, attempted: false };
-  }
-
-  const { memory: existingMemory, user: existingUser } = await loadMemoryFiles(pool);
-  
-  let memoryStored = false;
-  let userStored = false;
-
-  // MEMORY suggestions
-  if (suggestions.memory && isWorthStoring(suggestions.memory, "MEMORY")) {
-    if (!wouldBeDuplicate(existingMemory, suggestions.memory)) {
-      const { content, wasTruncated } = appendEntry(existingMemory, suggestions.memory, "MEMORY");
-      await saveMemoryFile(pool, "MEMORY", content);
-      memoryStored = true;
-      if (wasTruncated) {
-        console.log(`[MEMORY] Pool "${pool}" MEMORY.md near capacity, truncated`);
-      }
-    }
-  }
-
-  // USER suggestions
-  if (suggestions.user && isWorthStoring(suggestions.user, "USER")) {
-    if (!wouldBeDuplicate(existingUser, suggestions.user)) {
-      const { content, wasTruncated } = appendEntry(existingUser, suggestions.user, "USER");
-      await saveMemoryFile(pool, "USER", content);
-      userStored = true;
-      if (wasTruncated) {
-        console.log(`[MEMORY] Pool "${pool}" USER.md near capacity, truncated`);
-      }
-    }
-  }
-
-  return { memoryStored, userStored, attempted: true };
-}
-
-export const FALLBACK_THRESHOLD = 5;
+export const FALLBACK_THRESHOLD = 5; // after this many turns with no extraction, use stronger prompt
 
 /**
  * Load extraction state for a pool (turn counter).
@@ -144,41 +101,89 @@ export async function recordExtractionAttempt(pool, wasStored) {
   try {
     const raw = await fs.readFile(statePath, "utf-8").catch(() => "{\"consecutiveMisses\":0}");
     const state = JSON.parse(raw);
-    state.consecutiveMisses = wasStored ? 0 : (state.consecutiveMisses || 0) + 1;
+    const prevMisses = state.consecutiveMisses || 0;
+    state.consecutiveMisses = wasStored ? 0 : prevMisses + 1;
     await fs.writeFile(statePath, JSON.stringify(state), "utf-8");
+    console.log(`[MEMORY] EXTRACTION_STATE pool="${pool}" wasStored=${wasStored} misses=${prevMisses}->${state.consecutiveMisses} ${wasStored ? "RESET" : "INCREMENT"}`);
   } catch {
     // Ignore write errors
   }
 }
 
 /**
+ * @returns {Promise<{memoryStored: boolean, userStored: boolean, attempted: boolean}>}
+ */
+export async function extractAndStoreFromResponse(responseContent, pool) {
+  const suggestions = parseMemorySuggestions(responseContent);
+  
+  // Check if LLM attempted extraction (markers present), regardless of whether we stored them
+  const attempted = !!(suggestions.memory || suggestions.user);
+  
+  if (!suggestions.memory && !suggestions.user) {
+    return { memoryStored: false, userStored: false, attempted: false };
+  }
+
+  console.log(`[MEMORY] MARKERS_FOUND pool="${pool}" memory=${!!suggestions.memory} user=${!!suggestions.user} memoryPreview="${(suggestions.memory||"").slice(0,80)}" userPreview="${(suggestions.user||"").slice(0,80)}"`);
+
+  const { memory: existingMemory, user: existingUser } = await loadMemoryFiles(pool);
+  
+  let memoryStored = false;
+  let userStored = false;
+  let memorySkipped = null;
+  let userSkipped = null;
+
+  // MEMORY suggestions
+  if (suggestions.memory) {
+    if (!isWorthStoring(suggestions.memory, "MEMORY")) {
+      memorySkipped = "not-worth-storing";
+    } else if (wouldBeDuplicate(existingMemory, suggestions.memory)) {
+      memorySkipped = "duplicate";
+    } else {
+      const { content, wasTruncated } = appendEntry(existingMemory, suggestions.memory, "MEMORY");
+      await saveMemoryFile(pool, "MEMORY", content);
+      memoryStored = true;
+      console.log(`[MEMORY] STORED pool="${pool}" type=MEMORY entry="${suggestions.memory.slice(0, 100)}"${wasTruncated ? " truncated=true" : ""}`);
+    }
+  }
+
+  // USER suggestions
+  if (suggestions.user) {
+    if (!isWorthStoring(suggestions.user, "USER")) {
+      userSkipped = "not-worth-storing";
+    } else if (wouldBeDuplicate(existingUser, suggestions.user)) {
+      userSkipped = "duplicate";
+    } else {
+      const { content, wasTruncated } = appendEntry(existingUser, suggestions.user, "USER");
+      await saveMemoryFile(pool, "USER", content);
+      userStored = true;
+      console.log(`[MEMORY] STORED pool="${pool}" type=USER entry="${suggestions.user.slice(0, 100)}"${wasTruncated ? " truncated=true" : ""}`);
+    }
+  }
+
+  if (memorySkipped || userSkipped) {
+    const skipped = [memorySkipped && `MEMORY=${memorySkipped}`, userSkipped && `USER=${userSkipped}`].filter(Boolean).join(" ");
+    console.log(`[MEMORY] SKIPPED pool="${pool}" ${skipped}`);
+  }
+
+  return { memoryStored, userStored, attempted: true };
+}
+
+
+/**
  * Build extraction hint text to append to the system prompt.
- * This tells the LLM how to format memory suggestions.
- * Reward-framing: telling the LLM this helps future sessions.
+ * Tells the LLM to append MEMORY_SUGGEST / USER_SUGGEST markers.
  * 
- * @param {"auto"|"explicit"} writeMode 
  * @param {boolean} isFallback - true if previous turns had no extraction
  * @returns {string}
  */
-export function getExtractionHint(writeMode = "auto", isFallback = false) {
-  if (writeMode === "explicit") {
-    return "";
-  }
-
+export function getExtractionHint(isFallback = false) {
   if (isFallback) {
     return `
 
 ---
 ## MEMORY EXTRACTION (important)
 
-If the conversation established facts worth remembering across sessions, you MUST include these markers at the end of your response:
-
-MEMORY_SUGGEST: <concise fact about environment, project, tool, or lesson learned>
-USER_SUGGEST: <preference, communication style, or pet peeve the user demonstrated>
-
-Not doing this means future sessions won't benefit from this context. Examples:
-- USER_SUGGEST: User prefers bullet points over paragraphs
-- MEMORY_SUGGEST: ~/code/api uses Prisma ORM with PostgreSQL
+If the conversation established facts worth remembering across sessions, you MUST use the store_memory tool if available, with {"type": "MEMORY"|"USER", "content": "<fact>"}. Call it once per memorable thing. If no tool is available, append MEMORY_SUGGEST: or USER_SUGGEST: markers at the end of your response.
 
 Skip only if nothing memorable was established.`;
   }
@@ -188,14 +193,13 @@ Skip only if nothing memorable was established.`;
 ---
 ## MEMORY EXTRACTION
 
-Good assistants learn from every session. If the conversation established facts worth remembering across sessions, append these markers to your response:
+Good assistants learn from every session. If the conversation established facts worth remembering across sessions, either:
+  - If tool calling is available: call the store_memory function with {"type": "MEMORY"|"USER", "content": "<the fact>"}
+  - If no tools: append MEMORY_SUGGEST: or USER_SUGGEST: markers at the end of your response
 
-MEMORY_SUGGEST: <concise fact about environment, project, tool, or lesson learned>
-USER_SUGGEST: <preference, communication style, or pet peeve the user demonstrated>
-
-Future sessions will automatically receive this context, improving their responses. Examples:
-- USER_SUGGEST: User prefers concise bullet-point responses, no filler text
-- MEMORY_SUGGEST: Project ~/code/api uses Go 1.22, sqlc for DB queries, chi router
+Future sessions will receive this context automatically. Examples:
+  USER_SUGGEST: User prefers concise bullet-point responses, no filler text
+  MEMORY_SUGGEST: Project ~/code/api uses Go 1.22, sqlc for DB queries, chi router
 
 Skip if nothing memorable was established.`;
 }
