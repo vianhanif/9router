@@ -16,50 +16,23 @@ import os from "os";
 
 /**
  * Parse memory suggestions from an LLM response.
- * Looks for:
+ * Looks for multiple instances of:
  *   MEMORY_SUGGEST: <entry>
  *   USER_SUGGEST: <entry>
  * 
  * @param {string} responseContent - the assistant's response text
- * @returns {{ memory: string|null, user: string|null }}
+ * @returns {{ memory: string[], user: string[] }}
  */
 export function parseMemorySuggestions(responseContent) {
-  if (!responseContent) return { memory: null, user: null };
+  if (!responseContent) return { memory: [], user: [] };
 
-  const memoryMatch = responseContent.match(/MEMORY_SUGGEST:\s*([\s\S]*?)(?=\nUSER_SUGGEST:|$)/i);
-  const userMatch = responseContent.match(/USER_SUGGEST:\s*([\s\S]*?)(?=\nMEMORY_SUGGEST:|$)/i);
+  const memoryMatches = [...responseContent.matchAll(/^MEMORY_SUGGEST:\s*(.+)$/gmi)];
+  const userMatches = [...responseContent.matchAll(/^USER_SUGGEST:\s*(.+)$/gmi)];
 
   return {
-    memory: memoryMatch ? memoryMatch[1].trim() : null,
-    user: userMatch ? userMatch[1].trim() : null,
+    memory: memoryMatches.map(m => m[1].trim()),
+    user: userMatches.map(m => m[1].trim()),
   };
-}
-
-/**
- * Check if a memory suggestion is worth storing.
- * Filters out trivial / too short / obviously bad entries.
- * 
- * @param {string|null} entry 
- * @param {"MEMORY"|"USER"} type
- * @returns {boolean}
- */
-export function isWorthStoring(entry, type) {
-  if (!entry) return false;
-  const trimmed = entry.trim();
-  
-  // Min length check
-  if (trimmed.length < 10) return false;
-  
-  // Skip obvious question patterns
-  if (trimmed.startsWith("?")) return false;
-  
-  // Skip code blocks
-  if (trimmed.startsWith("```")) return false;
-  
-  // Skip entries that are just file paths without context
-  if (/^~\/[\w\-\/]+$/.test(trimmed)) return false;
-  
-  return true;
 }
 
 /**
@@ -111,58 +84,71 @@ export async function recordExtractionAttempt(pool, wasStored) {
 }
 
 /**
+ * Check if a memory suggestion is worth storing.
+ * Filters out trivial / too short / obviously bad entries.
+ */
+export function isWorthStoring(entry, type) {
+  if (!entry) return false;
+  const trimmed = entry.trim();
+  if (trimmed.length < 10) return false;
+  if (trimmed.startsWith("?")) return false;
+  if (trimmed.startsWith("```")) return false;
+  if (/^~\/[\w\-\/]+$/.test(trimmed)) return false;
+  return true;
+}
+
+/**
  * @returns {Promise<{memoryStored: boolean, userStored: boolean, attempted: boolean}>}
  */
 export async function extractAndStoreFromResponse(responseContent, pool) {
   const suggestions = parseMemorySuggestions(responseContent);
   
   // Check if LLM attempted extraction (markers present), regardless of whether we stored them
-  const attempted = !!(suggestions.memory || suggestions.user);
+  const attempted = (suggestions.memory.length > 0 || suggestions.user.length > 0);
   
-  if (!suggestions.memory && !suggestions.user) {
+  if (!attempted) {
     return { memoryStored: false, userStored: false, attempted: false };
   }
 
-  console.log(`[MEMORY] MARKERS_FOUND pool="${pool}" memory=${!!suggestions.memory} user=${!!suggestions.user} memoryPreview="${(suggestions.memory||"").slice(0,80)}" userPreview="${(suggestions.user||"").slice(0,80)}"`);
+  console.log(`[MEMORY] MARKERS_FOUND pool="${pool}" memory=${suggestions.memory.length} user=${suggestions.user.length}`);
 
   const { memory: existingMemory, user: existingUser } = await loadMemoryFiles(pool);
   
   let memoryStored = false;
   let userStored = false;
-  let memorySkipped = null;
-  let userSkipped = null;
+  let memorySkipped = [];
+  let userSkipped = [];
 
   // MEMORY suggestions
-  if (suggestions.memory) {
-    if (!isWorthStoring(suggestions.memory, "MEMORY")) {
-      memorySkipped = "not-worth-storing";
-    } else if (wouldBeDuplicate(existingMemory, suggestions.memory)) {
-      memorySkipped = "duplicate";
+  for (const entry of suggestions.memory) {
+    if (!isWorthStoring(entry, "MEMORY")) {
+      memorySkipped.push("not-worth-storing");
+    } else if (wouldBeDuplicate(existingMemory, entry)) {
+      memorySkipped.push("duplicate");
     } else {
-      const { content, wasTruncated } = appendEntry(existingMemory, suggestions.memory, "MEMORY");
+      const { content, wasTruncated } = appendEntry(existingMemory, entry, "MEMORY");
       await saveMemoryFile(pool, "MEMORY", content);
       memoryStored = true;
-      console.log(`[MEMORY] STORED pool="${pool}" type=MEMORY entry="${suggestions.memory.slice(0, 100)}"${wasTruncated ? " truncated=true" : ""}`);
+      console.log(`[MEMORY] STORED pool="${pool}" type=MEMORY entry="${entry.slice(0, 100)}"${wasTruncated ? " truncated=true" : ""}`);
     }
   }
 
   // USER suggestions
-  if (suggestions.user) {
-    if (!isWorthStoring(suggestions.user, "USER")) {
-      userSkipped = "not-worth-storing";
-    } else if (wouldBeDuplicate(existingUser, suggestions.user)) {
-      userSkipped = "duplicate";
+  for (const entry of suggestions.user) {
+    if (!isWorthStoring(entry, "USER")) {
+      userSkipped.push("not-worth-storing");
+    } else if (wouldBeDuplicate(existingUser, entry)) {
+      userSkipped.push("duplicate");
     } else {
-      const { content, wasTruncated } = appendEntry(existingUser, suggestions.user, "USER");
+      const { content, wasTruncated } = appendEntry(existingUser, entry, "USER");
       await saveMemoryFile(pool, "USER", content);
       userStored = true;
-      console.log(`[MEMORY] STORED pool="${pool}" type=USER entry="${suggestions.user.slice(0, 100)}"${wasTruncated ? " truncated=true" : ""}`);
+      console.log(`[MEMORY] STORED pool="${pool}" type=USER entry="${entry.slice(0, 100)}"${wasTruncated ? " truncated=true" : ""}`);
     }
   }
 
-  if (memorySkipped || userSkipped) {
-    const skipped = [memorySkipped && `MEMORY=${memorySkipped}`, userSkipped && `USER=${userSkipped}`].filter(Boolean).join(" ");
-    console.log(`[MEMORY] SKIPPED pool="${pool}" ${skipped}`);
+  if (memorySkipped.length > 0 || userSkipped.length > 0) {
+    console.log(`[MEMORY] SKIPPED pool="${pool}" memory=${memorySkipped.join(",")} user=${userSkipped.join(",")}`);
   }
 
   return { memoryStored, userStored, attempted: true };
