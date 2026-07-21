@@ -145,11 +145,10 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   if (!modelInfo.provider) {
     const comboModels = await getComboModels(modelStr);
     if (comboModels) {
-      const chatSettings = await getSettings();
       // Check for combo-specific strategy first, fallback to global
-      const comboStrategies = chatSettings.comboStrategies || {};
+      const comboStrategies = settings.comboStrategies || {};
       const comboSpecificStrategy = comboStrategies[modelStr]?.fallbackStrategy;
-      const comboStrategy = comboSpecificStrategy || chatSettings.comboStrategy || "fallback";
+      const comboStrategy = comboSpecificStrategy || settings.comboStrategy || "fallback";
 
       if (comboStrategy === "fusion") {
         log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: fusion)`);
@@ -171,7 +170,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         });
       }
 
-      const comboStickyLimit = chatSettings.comboStickyRoundRobinLimit;
+      const comboStickyLimit = settings.comboStickyRoundRobinLimit;
       log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
       return handleComboChat({
         body,
@@ -239,9 +238,11 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     }
 
     // Use shared chatCore
-    const chatSettings = await getSettings();
-    const providerThinking = (chatSettings.providerThinking || {})[provider] || null;
+    const providerThinking = (settings.providerThinking || {})[provider] || null;
     const result = await handleChatCore({
+      onStreamComplete: async (contentObj) => {
+        // Memory extraction handled by server handler
+      },
       body: { ...body, model: `${provider}/${model}` },
       modelInfo: { provider, model },
       credentials: refreshedCredentials,
@@ -250,15 +251,15 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       connectionId: credentials.connectionId,
       userAgent,
       apiKey,
-      ccFilterNaming: !!chatSettings.ccFilterNaming,
-      rtkEnabled: !!chatSettings.rtkEnabled,
-      headroomEnabled: !!chatSettings.headroomEnabled,
-      headroomUrl: chatSettings.headroomUrl || DEFAULT_HEADROOM_URL,
-      headroomCompressUserMessages: !!chatSettings.headroomCompressUserMessages,
-      cavemanEnabled: !!chatSettings.cavemanEnabled,
-      cavemanLevel: chatSettings.cavemanLevel || "full",
-      ponytailEnabled: !!chatSettings.ponytailEnabled,
-      ponytailLevel: chatSettings.ponytailLevel || "full",
+      ccFilterNaming: !!settings.ccFilterNaming,
+      rtkEnabled: !!settings.rtkEnabled,
+      headroomEnabled: !!settings.headroomEnabled,
+      headroomUrl: settings.headroomUrl || DEFAULT_HEADROOM_URL,
+      headroomCompressUserMessages: !!settings.headroomCompressUserMessages,
+      cavemanEnabled: !!settings.cavemanEnabled,
+      cavemanLevel: settings.cavemanLevel || "full",
+      ponytailEnabled: !!settings.ponytailEnabled,
+      ponytailLevel: settings.ponytailLevel || "full",
       providerThinking,
       // Detect source format by endpoint + body
       sourceFormatOverride: request?.url ? detectFormatByEndpoint(new URL(request.url).pathname, body) : null,
