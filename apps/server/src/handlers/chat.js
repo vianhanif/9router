@@ -173,8 +173,18 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       log.info("MEMORY", `Injection pool="${pool}" userMsgs=${userMsgCount} consecutiveMisses=${extractionState.consecutiveMisses} isFallback=${isFallback}`);
       const hintText = getExtractionHint(isFallback);
       if (hintText) {
-        const hintMsg = { role: "user", content: `[SYSTEM HINT]: ${hintText}` };
-        body.messages.push(hintMsg);
+        // Guard: skip if hint already injected (body shared across combo models)
+        const alreadyHasHint = body.messages.some(m =>
+          m.content && (m.content.startsWith('[MEMORY EXTRACTION HINT]') || m.content.startsWith('[SYSTEM HINT]:'))
+        );
+        if (!alreadyHasHint) {
+          const hintMsg = { role: "system", content: `[MEMORY EXTRACTION HINT]
+
+${hintText}` };
+          body.messages.push(hintMsg);
+        } else {
+          log.info("MEMORY", `Skip hint pool="${pool}" — already present`);
+        }
       }
     } else {
       log.info("MEMORY", `Skip hint pool="${pool}" userMsgs=${userMsgCount} ≤ threshold=${settings.memoryExtractionThreshold}`);

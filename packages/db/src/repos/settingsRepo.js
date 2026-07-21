@@ -44,7 +44,7 @@ const DEFAULT_SETTINGS = {
   ponytailEnabled: false,
   ponytailLevel: "full",
   memoryEnabled: true,
-  memoryExtractionThreshold: 5,
+  memoryExtractionThreshold: 1,
 };
 
 async function readRaw() {
