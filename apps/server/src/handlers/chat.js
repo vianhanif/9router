@@ -186,8 +186,15 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     }
     // Inject store_memory tool if request has tools (agent-mode conversations)
     if (body.tools && body.tools.length > 0) {
-      body.tools.push({ type: "function", function: MEMORY_TOOL_DEFINITION });
-      log.info("MEMORY", `Injected store_memory tool pool="${pool}" tools=${body.tools.length}`);
+      const hasStoreMemory = body.tools.some(t =>
+        t.function?.name === MEMORY_TOOL_NAME || t.name === MEMORY_TOOL_NAME
+      );
+      if (!hasStoreMemory) {
+        body.tools.push({ type: "function", function: MEMORY_TOOL_DEFINITION });
+        log.info("MEMORY", `Injected store_memory tool pool="${pool}" tools=${body.tools.length}`);
+      } else {
+        log.info("MEMORY", `store_memory already present pool="${pool}" skipping injection`);
+      }
     }
   } else {
     log.info("MEMORY", `Request phase memoryDisabled=${!settings.memoryEnabled} hasMessages=${!!body.messages}`);
