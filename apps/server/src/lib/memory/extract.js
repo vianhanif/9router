@@ -177,29 +177,35 @@ export async function extractAndStoreFromResponse(responseContent, pool) {
  * @returns {string}
  */
 export function getExtractionHint(isFallback = false) {
-  if (isFallback) {
-    return `
+  const base = `
 
 ---
-## MEMORY EXTRACTION (important)
+## MEMORY EXTRACTION — YOU MUST FOLLOW THIS
 
-If the conversation established facts worth remembering across sessions, you MUST use the store_memory tool if available, with {"type": "MEMORY"|"USER", "content": "<fact>"}. Call it once per memorable thing. If no tool is available, append MEMORY_SUGGEST: or USER_SUGGEST: markers at the end of your response.
+This is a persistent memory system. It lets you remember facts across sessions.
 
-Skip only if nothing memorable was established.`;
+**You MUST append markers when memorable facts are established:**
+- MEMORY_SUGGEST: <fact about user's environment, project, tooling, decisions>
+- USER_SUGGEST: <fact about user's preferences, communication style>
+
+Examples:
+  MEMORY_SUGGEST: User is a backend engineer working on insurance tech at PasarPolis
+  MEMORY_SUGGEST: Project core is a Go monolith using chi router, GORM, MySQL
+  USER_SUGGEST: User prefers concise bullet-point responses with no filler
+
+**Rules:**
+- Put markers at the VERY END of your response, after all other content
+- One line per marker, no extra formatting
+- Skip only if NOTHING memorable was established (routine greeting, simple yes/no)
+- If you have facts to store, THIS is how — no other format accepted
+
+**Consequence:** If you don't append markers, memory won't be saved and you'll have to re-learn everything next session.`;
+
+  if (isFallback) {
+    return base + `
+
+⛔ **IMPORTANT:** You have missed 5+ consecutive opportunities to save memory. This is a hard requirement, not optional. Always end with markers.`;
   }
 
-  return `
-
----
-## MEMORY EXTRACTION
-
-Good assistants learn from every session. If the conversation established facts worth remembering across sessions, either:
-  - If tool calling is available: call the store_memory function with {"type": "MEMORY"|"USER", "content": "<the fact>"}
-  - If no tools: append MEMORY_SUGGEST: or USER_SUGGEST: markers at the end of your response
-
-Future sessions will receive this context automatically. Examples:
-  USER_SUGGEST: User prefers concise bullet-point responses, no filler text
-  MEMORY_SUGGEST: Project ~/code/api uses Go 1.22, sqlc for DB queries, chi router
-
-Skip if nothing memorable was established.`;
+  return base;
 }
