@@ -173,13 +173,8 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       log.info("MEMORY", `Injection pool="${pool}" userMsgs=${userMsgCount} consecutiveMisses=${extractionState.consecutiveMisses} isFallback=${isFallback}`);
       const hintText = getExtractionHint(isFallback);
       if (hintText) {
-        const hintMsg = { role: "system", content: hintText };
-        const lastSys = body.messages.reduce((last, m, i) => m.role === "system" ? i : last, -1);
-        if (lastSys >= 0) {
-          body.messages.splice(lastSys + 1, 0, hintMsg);
-        } else {
-          body.messages.unshift(hintMsg);
-        }
+        const hintMsg = { role: "user", content: `[SYSTEM HINT]: ${hintText}` };
+        body.messages.push(hintMsg);
       }
     } else {
       log.info("MEMORY", `Skip hint pool="${pool}" userMsgs=${userMsgCount} ≤ threshold=${settings.memoryExtractionThreshold}`);
