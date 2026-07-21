@@ -174,9 +174,11 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       const hintText = getExtractionHint(isFallback);
       if (hintText) {
         // Guard: skip if hint already injected (body shared across combo models)
-        const alreadyHasHint = body.messages.some(m =>
-          m.content && (m.content.startsWith('[MEMORY EXTRACTION HINT]') || m.content.startsWith('[SYSTEM HINT]:'))
-        );
+        const alreadyHasHint = body.messages.some(m => {
+          if (!m.content) return false;
+          const content = typeof m.content === 'string' ? m.content : '';
+          return content.startsWith('[MEMORY EXTRACTION HINT]') || content.startsWith('[SYSTEM HINT]:');
+        });
         if (!alreadyHasHint) {
           const hintMsg = { role: "system", content: `[MEMORY EXTRACTION HINT]
 
@@ -322,7 +324,7 @@ ${hintText}` };
             const { storeFromToolCalls } = await import("../lib/memory/tool.js");
             storeFromToolCalls(memoryToolCalls, memoryPool).then(result => {
               log.info("MEMORY", `TOOL_STORED pool="${memoryPool}" memory=${result.memoryStored} user=${result.userStored}`);
-              recordExtractionAttempt(memoryPool, result.memoryStored || result.userStored).catch(() => {});
+              recordExtractionAttempt(memoryPool, { wasStored: !!(result.memoryStored || result.userStored), attempted: true, skippedCount: 0 }).catch(() => {});
             }).catch(err => {
               log.warn("MEMORY", `TOOL_STORE_ERROR pool="${memoryPool}" ${err.message}`);
             });
@@ -336,7 +338,8 @@ ${hintText}` };
           tryExtractFromResponse(apiKey, contentObj.content).then(extractResult => {
             const stored = extractResult.memoryStored || extractResult.userStored;
             log.info("MEMORY", `Extraction result pool="${memoryPool}" memoryStored=${extractResult.memoryStored} userStored=${extractResult.userStored} attempted=${extractResult.attempted}`);
-            recordExtractionAttempt(memoryPool, stored).catch(() => {});
+            const skipped = (extractResult.memorySkipped || 0) + (extractResult.userSkipped || 0);
+            recordExtractionAttempt(memoryPool, { wasStored: stored, attempted: extractResult.attempted, skippedCount: skipped }).catch(() => {});
           }).catch(err => {
             log.warn("MEMORY", `Extraction error pool="${memoryPool}" ${err.message}`);
           });
