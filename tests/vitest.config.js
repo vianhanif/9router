@@ -50,7 +50,8 @@ export default defineConfig({
     alias: [
       { find: /^open-sse\//, replacement: resolve(__dirname, "../packages/core") + "/" },
       { find: "@9router/core", replacement: resolve(__dirname, "../packages/core") },
-      { find: /^@\//, replacement: resolve(__dirname, "../src") + "/" },
+      // @/ resolves to apps/server/src/ (the canonical server source)
+      { find: /^@\//, replacement: resolve(__dirname, "../apps/server/src") + "/" },
     ],
   },
 });
