@@ -328,8 +328,9 @@ ${hintText}` };
             }).catch(err => {
               log.warn("MEMORY", `TOOL_STORE_ERROR pool="${memoryPool}" ${err.message}`);
             });
+            return; // Tool calls handled — skip prose extraction
           }
-          return; // Don't double-process prose extraction
+          // No store_memory calls found — fall through to check for prose markers
         }
 
         // 2. Handle prose extraction (chat mode) — markers in content
