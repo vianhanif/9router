@@ -62,6 +62,7 @@ export function createSSEStream(options = {}) {
   let totalContentLength = 0;
   let accumulatedContent = "";
   let accumulatedThinking = "";
+  let accumulatedToolCalls = {}; // index -> { id, type, function: { name, arguments } }
   let ttftAt = null;
   let sseLineCount = 0;
   let sseEmittedCount = 0;
@@ -143,6 +144,35 @@ export function createSSEStream(options = {}) {
               if (reasoning && typeof reasoning === "string") {
                 totalContentLength += reasoning.length;
                 accumulatedThinking += reasoning;
+              }
+
+              // Accumulate tool calls in passthrough mode
+              const toolCallsDelta = delta?.tool_calls;
+              if (toolCallsDelta && Array.isArray(toolCallsDelta)) {
+                for (const tc of toolCallsDelta) {
+                  const idx = tc.index;
+                  if (idx === undefined) continue;
+                  if (!accumulatedToolCalls[idx]) {
+                    accumulatedToolCalls[idx] = {
+                      id: tc.id || null,
+                      type: tc.type || "function",
+                      function: {
+                        name: tc.function?.name || null,
+                        arguments: tc.function?.arguments || ""
+                      }
+                    };
+                  } else {
+                    if (tc.function?.arguments) {
+                      accumulatedToolCalls[idx].function.arguments += tc.function.arguments;
+                    }
+                    if (tc.function?.name && !accumulatedToolCalls[idx].function.name) {
+                      accumulatedToolCalls[idx].function.name = tc.function.name;
+                    }
+                    if (tc.id && !accumulatedToolCalls[idx].id) {
+                      accumulatedToolCalls[idx].id = tc.id;
+                    }
+                  }
+                }
               }
 
               const extracted = extractUsage(parsed);
@@ -285,6 +315,26 @@ export function createSSEStream(options = {}) {
         if (translated?.length > 0) {
           for (const item of translated) {
             if (item === null || item === undefined) continue;
+
+            // Accumulate tool calls from translated items (translate mode)
+            const translatedToolCalls = item.choices?.[0]?.delta?.tool_calls;
+            if (translatedToolCalls && Array.isArray(translatedToolCalls)) {
+              for (const tc of translatedToolCalls) {
+                const idx = tc.index ?? tc._accumulatedIndex ?? Object.keys(accumulatedToolCalls).length;
+                if (!accumulatedToolCalls[idx]) {
+                  accumulatedToolCalls[idx] = {
+                    id: tc.id || null,
+                    type: tc.type || "function",
+                    function: { name: tc.function?.name || null, arguments: tc.function?.arguments || "" }
+                  };
+                } else {
+                  if (tc.function?.arguments) accumulatedToolCalls[idx].function.arguments += tc.function.arguments;
+                  if (tc.function?.name && !accumulatedToolCalls[idx].function.name) accumulatedToolCalls[idx].function.name = tc.function.name;
+                  if (tc.id && !accumulatedToolCalls[idx].id) accumulatedToolCalls[idx].id = tc.id;
+                }
+              }
+            }
+
             // Filter empty chunks
             if (!hasValuableContent(item, sourceFormat)) {
               continue; // Skip this empty chunk
@@ -350,7 +400,8 @@ export function createSSEStream(options = {}) {
           if (onStreamComplete) {
             onStreamComplete({
               content: accumulatedContent,
-              thinking: accumulatedThinking
+              thinking: accumulatedThinking,
+              toolCalls: Object.values(accumulatedToolCalls)
             }, usage, ttftAt);
           }
           return;
@@ -425,7 +476,8 @@ export function createSSEStream(options = {}) {
         if (onStreamComplete) {
           onStreamComplete({
             content: accumulatedContent,
-            thinking: accumulatedThinking
+            thinking: accumulatedThinking,
+            toolCalls: Object.values(accumulatedToolCalls)
           }, state?.usage, ttftAt);
         }
       } catch (error) {

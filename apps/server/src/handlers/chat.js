@@ -19,6 +19,8 @@ import { detectFormatByEndpoint } from "@9router/core/translator/formats.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "@9router/core/services/projectId.js";
+import { loadMemoryForRequest, tryExtractFromResponse, getExtractionHint, loadExtractionState, recordExtractionAttempt, FALLBACK_THRESHOLD, detectMemoryPool } from "../lib/memory/index.js";
+import { MEMORY_TOOL_DEFINITION, MEMORY_TOOL_NAME, parseMemoryToolCalls } from "../lib/memory/tool.js";
 
 /**
  * Handle chat completion request
@@ -154,17 +156,67 @@ export async function handleChat(request, clientRawRequest = null) {
  * Handle single model chat request
  */
 async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null) {
+  // Memory: load + inject persistent memory + extraction hint
+  const settings = await getSettings();
+  if (settings.memoryEnabled && body.messages) {
+    const pool = detectMemoryPool(apiKey);
+    log.info("MEMORY", `Request phase pool="${pool}" enabled=true messages=${body.messages.length}`);
+    await loadMemoryForRequest(apiKey, body.messages);
+    // Inject extraction hint after threshold
+    const userMsgCount = body.messages.filter(m => m.role === "user").length;
+    log.info("MEMORY", `Extraction threshold check pool="${pool}" userMsgs=${userMsgCount} threshold=${settings.memoryExtractionThreshold}`);
+    if (userMsgCount > settings.memoryExtractionThreshold) {
+      const extractionState = await loadExtractionState(pool);
+      const isFallback = FALLBACK_THRESHOLD > 0
+        ? extractionState.consecutiveMisses >= FALLBACK_THRESHOLD
+        : false;
+      log.info("MEMORY", `Injection pool="${pool}" userMsgs=${userMsgCount} consecutiveMisses=${extractionState.consecutiveMisses} isFallback=${isFallback}`);
+      const hintText = getExtractionHint(isFallback);
+      if (hintText) {
+        // Guard: skip if hint already injected (body shared across combo models)
+        const alreadyHasHint = body.messages.some(m => {
+          if (!m.content) return false;
+          const content = typeof m.content === 'string' ? m.content : '';
+          return content.startsWith('[MEMORY EXTRACTION HINT]') || content.startsWith('[SYSTEM HINT]:');
+        });
+        if (!alreadyHasHint) {
+          const hintMsg = { role: "system", content: `[MEMORY EXTRACTION HINT]
+
+${hintText}` };
+          body.messages.push(hintMsg);
+        } else {
+          log.info("MEMORY", `Skip hint pool="${pool}" — already present`);
+        }
+      }
+    } else {
+      log.info("MEMORY", `Skip hint pool="${pool}" userMsgs=${userMsgCount} ≤ threshold=${settings.memoryExtractionThreshold}`);
+    }
+    // Inject store_memory tool if request has tools (agent-mode conversations)
+    if (body.tools && body.tools.length > 0) {
+      const hasStoreMemory = body.tools.some(t =>
+        t.function?.name === MEMORY_TOOL_NAME || t.name === MEMORY_TOOL_NAME
+      );
+      if (!hasStoreMemory) {
+        body.tools.push({ type: "function", function: MEMORY_TOOL_DEFINITION });
+        log.info("MEMORY", `Injected store_memory tool pool="${pool}" tools=${body.tools.length}`);
+      } else {
+        log.info("MEMORY", `store_memory already present pool="${pool}" skipping injection`);
+      }
+    }
+  } else {
+    log.info("MEMORY", `Request phase memoryDisabled=${!settings.memoryEnabled} hasMessages=${!!body.messages}`);
+  }
+
   const modelInfo = await getModelInfo(modelStr);
 
   // If provider is null, this might be a combo name - check and handle
   if (!modelInfo.provider) {
     const comboModels = await getComboModels(modelStr);
     if (comboModels) {
-      const chatSettings = await getSettings();
       // Check for combo-specific strategy first, fallback to global
-      const comboStrategies = chatSettings.comboStrategies || {};
+      const comboStrategies = settings.comboStrategies || {};
       const comboSpecificStrategy = comboStrategies[modelStr]?.fallbackStrategy;
-      const comboStrategy = comboSpecificStrategy || chatSettings.comboStrategy || "fallback";
+      const comboStrategy = comboSpecificStrategy || settings.comboStrategy || "fallback";
 
       if (comboStrategy === "fusion") {
         log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: fusion)`);
@@ -186,7 +238,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         });
       }
 
-      const comboStickyLimit = chatSettings.comboStickyRoundRobinLimit;
+      const comboStickyLimit = settings.comboStickyRoundRobinLimit;
       log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
       return handleComboChat({
         body,
@@ -254,9 +306,47 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     }
 
     // Use shared chatCore
-    const chatSettings = await getSettings();
-    const providerThinking = (chatSettings.providerThinking || {})[provider] || null;
+    const providerThinking = (settings.providerThinking || {})[provider] || null;
+    const memoryPool = detectMemoryPool(apiKey);
     const result = await handleChatCore({
+      onStreamComplete: async (contentObj) => {
+        // Memory extraction from streaming response (fire-and-forget)
+        if (!settings.memoryEnabled) {
+          log.info("MEMORY", `Response phase pool="${memoryPool}" memoryDisabled=true`);
+          return;
+        }
+
+        // 1. Handle store_memory tool calls (agent mode)
+        if (contentObj?.toolCalls?.length > 0) {
+          const memoryToolCalls = parseMemoryToolCalls(contentObj.toolCalls);
+          if (memoryToolCalls.length > 0) {
+            log.info("MEMORY", `TOOL_CALL pool="${memoryPool}" calls=${memoryToolCalls.length} entries=${JSON.stringify(memoryToolCalls)}`);
+            const { storeFromToolCalls } = await import("../lib/memory/tool.js");
+            storeFromToolCalls(memoryToolCalls, memoryPool).then(result => {
+              log.info("MEMORY", `TOOL_STORED pool="${memoryPool}" memory=${result.memoryStored} user=${result.userStored}`);
+              recordExtractionAttempt(memoryPool, { wasStored: !!(result.memoryStored || result.userStored), attempted: true, skippedCount: 0 }).catch(() => {});
+            }).catch(err => {
+              log.warn("MEMORY", `TOOL_STORE_ERROR pool="${memoryPool}" ${err.message}`);
+            });
+          }
+          return; // Don't double-process prose extraction
+        }
+
+        // 2. Handle prose extraction (chat mode) — markers in content
+        if (contentObj?.content) {
+          log.info("MEMORY", `Response phase pool="${memoryPool}" responseLen=${contentObj.content.length} extracting=true`);
+          tryExtractFromResponse(apiKey, contentObj.content).then(extractResult => {
+            const stored = extractResult.memoryStored || extractResult.userStored;
+            log.info("MEMORY", `Extraction result pool="${memoryPool}" memoryStored=${extractResult.memoryStored} userStored=${extractResult.userStored} attempted=${extractResult.attempted}`);
+            const skipped = (extractResult.memorySkipped || 0) + (extractResult.userSkipped || 0);
+            recordExtractionAttempt(memoryPool, { wasStored: stored, attempted: extractResult.attempted, skippedCount: skipped }).catch(() => {});
+          }).catch(err => {
+            log.warn("MEMORY", `Extraction error pool="${memoryPool}" ${err.message}`);
+          });
+        } else {
+          log.info("MEMORY", `Response phase pool="${memoryPool}" noContent noToolCalls`);
+        }
+      },
       body: { ...body, model: `${provider}/${model}` },
       modelInfo: { provider, model },
       credentials: refreshedCredentials,
@@ -265,12 +355,12 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       connectionId: credentials.connectionId,
       userAgent,
       apiKey,
-      ccFilterNaming: !!chatSettings.ccFilterNaming,
-      rtkEnabled: !!chatSettings.rtkEnabled,
-      cavemanEnabled: !!chatSettings.cavemanEnabled,
-      cavemanLevel: chatSettings.cavemanLevel || "full",
-      ponytailEnabled: !!chatSettings.ponytailEnabled,
-      ponytailLevel: chatSettings.ponytailLevel || "full",
+      ccFilterNaming: !!settings.ccFilterNaming,
+      rtkEnabled: !!settings.rtkEnabled,
+      cavemanEnabled: !!settings.cavemanEnabled,
+      cavemanLevel: settings.cavemanLevel || "full",
+      ponytailEnabled: !!settings.ponytailEnabled,
+      ponytailLevel: settings.ponytailLevel || "full",
       providerThinking,
       // Detect source format by endpoint + body
       sourceFormatOverride: request?.url ? detectFormatByEndpoint(new URL(request.url).pathname, body) : null,

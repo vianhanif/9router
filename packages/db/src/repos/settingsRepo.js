@@ -43,6 +43,8 @@ const DEFAULT_SETTINGS = {
   usageBillingStartDay: 1,
   ponytailEnabled: false,
   ponytailLevel: "full",
+  memoryEnabled: true,
+  memoryExtractionThreshold: 1,
 };
 
 async function readRaw() {

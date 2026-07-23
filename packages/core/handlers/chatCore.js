@@ -32,8 +32,9 @@ import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
  * @param {object} options.modelInfo - { provider, model }
  * @param {object} options.credentials - Provider credentials
  * @param {string} options.sourceFormatOverride - Override detected source format (e.g. "openai-responses")
+ * @param {function} options.onStreamComplete - Optional callback fired when streaming finishes (contentObj, usage, ttftAt)
  */
-export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, sourceFormatOverride, providerThinking }) {
+export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, sourceFormatOverride, providerThinking, onStreamComplete: externalOnStreamComplete }) {
   const { provider, model } = modelInfo;
   const requestStartTime = Date.now();
 
@@ -313,7 +314,10 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   }
 
   // Streaming response
-  const { onStreamComplete } = buildOnStreamComplete({ ...sharedCtx });
+  const { onStreamComplete: internalOnStreamComplete } = buildOnStreamComplete({ ...sharedCtx });
+  const onStreamComplete = externalOnStreamComplete
+    ? async (...args) => { await internalOnStreamComplete(...args); await externalOnStreamComplete(...args); }
+    : internalOnStreamComplete;
   return handleStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete });
 }
 
