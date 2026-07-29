@@ -347,6 +347,19 @@ ${hintText}` };
           log.info("MEMORY", `Response phase pool="${memoryPool}" noContent noToolCalls`);
         }
       },
+      onNonStreamingComplete: async (content) => {
+        // Memory extraction for non-streaming (prose markers only)
+        if (!settings.memoryEnabled || !content) return;
+        log.info("MEMORY", `Response phase non-streaming pool="${memoryPool}" responseLen=${content.length} extracting=true`);
+        tryExtractFromResponse(apiKey, content).then(extractResult => {
+          const stored = extractResult.memoryStored || extractResult.userStored;
+          log.info("MEMORY", `Extraction result pool="${memoryPool}" memoryStored=${extractResult.memoryStored} userStored=${extractResult.userStored} attempted=${extractResult.attempted}`);
+          const skipped = (extractResult.memorySkipped || 0) + (extractResult.userSkipped || 0);
+          recordExtractionAttempt(memoryPool, { wasStored: stored, attempted: extractResult.attempted, skippedCount: skipped }).catch(() => {});
+        }).catch(err => {
+          log.warn("MEMORY", `Extraction error pool="${memoryPool}" ${err.message}`);
+        });
+      },
       body: { ...body, model: `${provider}/${model}` },
       modelInfo: { provider, model },
       credentials: refreshedCredentials,

@@ -194,7 +194,9 @@ export async function extractAndStoreFromResponse(responseContent, pool) {
     } else {
       const { content, wasTruncated } = appendEntry(existingMemory, entry, "MEMORY");
       await saveMemoryFile(pool, "MEMORY", content);
-      memoryStored = true;
+      if (!wasTruncated || content.length !== existingMemory.length) {
+        memoryStored = true;
+      }
       console.log(`[MEMORY] STORED pool="${pool}" type=MEMORY entry="${entry.slice(0, 100)}"${wasTruncated ? " truncated=true" : ""}`);
     }
   }
@@ -208,7 +210,9 @@ export async function extractAndStoreFromResponse(responseContent, pool) {
     } else {
       const { content, wasTruncated } = appendEntry(existingUser, entry, "USER");
       await saveMemoryFile(pool, "USER", content);
-      userStored = true;
+      if (!wasTruncated || content.length !== existingUser.length) {
+        userStored = true;
+      }
       console.log(`[MEMORY] STORED pool="${pool}" type=USER entry="${entry.slice(0, 100)}"${wasTruncated ? " truncated=true" : ""}`);
     }
   }

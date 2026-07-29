@@ -68,7 +68,14 @@ export function appendEntry(currentContent, entry, type) {
   const newContent = currentContent + separator + entry;
 
   if (newContent.length > limit) {
-    return { content: newContent.slice(0, limit), wasTruncated: true };
+    // Keep newest entries by trimming from the start.
+    // Preserve header if it exists, then take last (limit - headerLength) chars.
+    const headerPattern = /^(# [\w\s]+\n\n?)/;
+    const headerMatch = newContent.match(headerPattern);
+    const header = headerMatch ? headerMatch[1] : "";
+    const bodyLimit = limit - header.length;
+    const tail = newContent.slice(newContent.length - bodyLimit);
+    return { content: header + tail, wasTruncated: true };
   }
 
   return { content: newContent, wasTruncated: false };
