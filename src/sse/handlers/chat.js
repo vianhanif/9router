@@ -20,6 +20,8 @@ import { detectFormatByEndpoint } from "@9router/core/translator/formats.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "@9router/core/services/projectId.js";
+import { loadMemoryForRequest, tryExtractFromResponse } from "@/lib/memory";
+import { MEMORY_TOOL_DEFINITION, MEMORY_TOOL_ANTHROPIC } from "@/lib/memory/tool";
 
 /**
  * Handle chat completion request
@@ -66,6 +68,40 @@ export async function handleChat(request, clientRawRequest = null) {
     log.debug("AUTH", "No API key provided (local mode)");
   }
 
+  // Inject persistent memory into messages (before translation)
+  if (body.messages) {
+    try {
+      await loadMemoryForRequest(apiKey, body.messages);
+    } catch (e) {
+      log.warn("MEMORY", `Inject failed: ${e.message}`);
+    }
+  }
+
+  // Memory config for tool injection and response extraction
+  const memoryConfig = {
+    toolDefinitions: { openai: MEMORY_TOOL_DEFINITION, anthropic: MEMORY_TOOL_ANTHROPIC },
+    onStreamComplete: async (contentObj) => {
+      if (apiKey && contentObj?.content) {
+        try {
+          const result = await tryExtractFromResponse(apiKey, contentObj.content);
+          if (result.attempted) log.info("MEMORY", `extracted mem=${result.memoryStored} user=${result.userStored}`);
+        } catch (e) {
+          log.warn("MEMORY", `extract error: ${e.message}`);
+        }
+      }
+    },
+    onNonStreamingComplete: async (contentText) => {
+      if (apiKey && contentText) {
+        try {
+          const result = await tryExtractFromResponse(apiKey, contentText);
+          if (result.attempted) log.info("MEMORY", `extracted mem=${result.memoryStored} user=${result.userStored}`);
+        } catch (e) {
+          log.warn("MEMORY", `extract error: ${e.message}`);
+        }
+      }
+    },
+  };
+
   // Enforce API key if enabled in settings
   const settings = await getSettings();
   if (settings.requireApiKey) {
@@ -109,7 +145,7 @@ export async function handleChat(request, clientRawRequest = null) {
             const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
             cleanRawReq = { ...clientRawRequest, body: cleanBody };
           }
-          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey);
+          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, memoryConfig);
         },
         log,
         comboName: modelStr,
@@ -123,7 +159,7 @@ export async function handleChat(request, clientRawRequest = null) {
     return handleComboChat({
       body,
       models: comboModels,
-      handleSingleModel: (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
+      handleSingleModel: (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, memoryConfig),
       log,
       comboName: modelStr,
       comboStrategy,
@@ -132,13 +168,13 @@ export async function handleChat(request, clientRawRequest = null) {
   }
 
   // Single model request
-  return handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey);
+  return handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey, memoryConfig);
 }
 
 /**
  * Handle single model chat request
  */
-async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null) {
+async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, memoryConfig = null) {
   const modelInfo = await getModelInfo(modelStr);
 
   // If provider is null, this might be a combo name - check and handle
@@ -161,7 +197,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
               const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
               cleanRawReq = { ...clientRawRequest, body: cleanBody };
             }
-            return handleSingleModelChat(b, m, cleanRawReq, request, apiKey);
+            return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, memoryConfig);
           },
           log,
           comboName: modelStr,
@@ -170,17 +206,17 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         });
       }
 
-      const comboStickyLimit = settings.comboStickyRoundRobinLimit;
-      log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
-      return handleComboChat({
-        body,
-        models: comboModels,
-        handleSingleModel: (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
-        log,
-        comboName: modelStr,
-        comboStrategy,
-        comboStickyLimit
-      });
+    const comboStickyLimit = settings.comboStickyRoundRobinLimit;
+    log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
+    return handleComboChat({
+      body,
+      models: comboModels,
+      handleSingleModel: (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, memoryConfig),
+      log,
+      comboName: modelStr,
+      comboStrategy,
+      comboStickyLimit
+    });
     }
     log.warn("CHAT", "Invalid model format", { model: modelStr });
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid model format");
@@ -240,9 +276,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     // Use shared chatCore
     const providerThinking = (settings.providerThinking || {})[provider] || null;
     const result = await handleChatCore({
-      onStreamComplete: async (contentObj) => {
-        // Memory extraction handled by server handler
-      },
+      onStreamComplete: memoryConfig ? memoryConfig.onStreamComplete : async () => {},
       body: { ...body, model: `${provider}/${model}` },
       modelInfo: { provider, model },
       credentials: refreshedCredentials,
@@ -251,6 +285,8 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       connectionId: credentials.connectionId,
       userAgent,
       apiKey,
+      memoryToolDefinitions: memoryConfig?.toolDefinitions,
+      onNonStreamingComplete: memoryConfig?.onNonStreamingComplete,
       ccFilterNaming: !!settings.ccFilterNaming,
       rtkEnabled: !!settings.rtkEnabled,
       headroomEnabled: !!settings.headroomEnabled,

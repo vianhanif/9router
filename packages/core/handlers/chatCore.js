@@ -34,7 +34,7 @@ import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
  * @param {string} options.sourceFormatOverride - Override detected source format (e.g. "openai-responses")
  * @param {function} options.onStreamComplete - Optional callback fired when streaming finishes (contentObj, usage, ttftAt)
  */
-export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, sourceFormatOverride, providerThinking, onStreamComplete: externalOnStreamComplete }) {
+export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, sourceFormatOverride, providerThinking, onStreamComplete: externalOnStreamComplete, onNonStreamingComplete, memoryToolDefinitions }) {
   const { provider, model } = modelInfo;
   const requestStartTime = Date.now();
 
@@ -135,6 +135,12 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     toolNameMap = translatedBody._toolNameMap;
     delete translatedBody._toolNameMap;
     translatedBody.model = upstreamModel;
+  }
+
+  // Inject memory tools if configured
+  if (memoryToolDefinitions && Array.isArray(translatedBody.tools)) {
+    const tool = targetFormat === FORMATS.CLAUDE ? memoryToolDefinitions.anthropic : memoryToolDefinitions.openai;
+    if (tool) translatedBody.tools.push(tool);
   }
 
   // Dedupe duplicate built-in tools when equivalent MCP tools are present (Claude clients only).
@@ -308,7 +314,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   // True non-streaming response
   if (!stream) {
-    const result = await handleNonStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat, reqLogger, toolNameMap, trackDone, appendLog });
+    const result = await handleNonStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat, reqLogger, toolNameMap, trackDone, appendLog, onNonStreamingComplete });
     streamController.handleComplete();
     return result;
   }
