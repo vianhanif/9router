@@ -192,15 +192,23 @@ ${hintText}` };
       log.info("MEMORY", `Skip hint pool="${pool}" userMsgs=${userMsgCount} ≤ threshold=${settings.memoryExtractionThreshold}`);
     }
     // Inject store_memory tool if request has tools (agent-mode conversations)
+    // Guard: use a marker flag on body to ensure injection runs only once per request cycle.
+    // This prevents double-injection when combos are nested (outer combo → inner combo)
+    // where shallow copying or async timing can cause body.tools to appear unmodified.
     if (body.tools && body.tools.length > 0) {
-      const hasStoreMemory = body.tools.some(t =>
-        t.function?.name === MEMORY_TOOL_NAME || t.name === MEMORY_TOOL_NAME
-      );
-      if (!hasStoreMemory) {
-        body.tools.push({ type: "function", function: MEMORY_TOOL_DEFINITION });
-        log.info("MEMORY", `Injected store_memory tool pool="${pool}" tools=${body.tools.length}`);
+      if (body._memoryToolInjected) {
+        log.info("MEMORY", `store_memory already injected pool="${pool}" skipping`);
       } else {
-        log.info("MEMORY", `store_memory already present pool="${pool}" skipping injection`);
+        const hasStoreMemory = body.tools.some(t =>
+          t.function?.name === MEMORY_TOOL_NAME || t.name === MEMORY_TOOL_NAME
+        );
+        if (!hasStoreMemory) {
+          body.tools.push({ type: "function", function: MEMORY_TOOL_DEFINITION });
+          body._memoryToolInjected = true;
+          log.info("MEMORY", `Injected store_memory tool pool="${pool}" tools=${body.tools.length}`);
+        } else {
+          log.info("MEMORY", `store_memory already present pool="${pool}" skipping injection`);
+        }
       }
     }
   } else {
