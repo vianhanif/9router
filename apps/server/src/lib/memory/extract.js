@@ -173,6 +173,8 @@ export async function extractAndStoreFromResponse(responseContent, pool) {
   const attempted = (suggestions.memory.length > 0 || suggestions.user.length > 0);
 
   if (!attempted) {
+    const tail = responseContent.slice(-300).replace(/\n/g, "\\n").slice(0, 200);
+    console.log(`[MEMORY] NO_MARKERS pool="${pool}" tail="${tail}"`);
     return { memoryStored: false, userStored: false, attempted: false, memorySkipped: 0, userSkipped: 0 };
   }
 
