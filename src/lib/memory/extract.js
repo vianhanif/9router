@@ -172,34 +172,80 @@ export async function extractAndStoreFromResponse(responseContent, pool) {
 /**
  * Build extraction hint text to append to the system prompt.
  * Tells the LLM to append MEMORY_SUGGEST / USER_SUGGEST markers.
- * 
+ *
  * @param {boolean} isFallback - true if previous turns had no extraction
  * @returns {string}
  */
 export function getExtractionHint(isFallback = false) {
-  if (isFallback) {
-    return `
+  const base = `
 
 ---
-## MEMORY EXTRACTION (important)
+## Memory Extraction
 
-If the conversation established facts worth remembering across sessions, you MUST use the store_memory tool if available, with {"type": "MEMORY"|"USER", "content": "<fact>"}. Call it once per memorable thing. If no tool is available, append MEMORY_SUGGEST: or USER_SUGGEST: markers at the end of your response.
+Persistent memory system. Remembers facts across sessions so future conversations start with useful context.
 
-Skip only if nothing memorable was established.`;
+### What to store — state, not events
+
+Store facts a future session would **measurably** benefit from knowing. These are *state* — architecture, tooling, preferences, decisions, established facts.
+
+**Do NOT store *events*** — questions asked, commands run, topics discussed, routine interactions.
+
+#### Good examples (state)
+  MEMORY_SUGGEST: 9router uses chi router with middleware-chaining pattern, GORM for DB, MySQL
+  MEMORY_SUGGEST: 9router PRs deploy via GitHub Actions, staging env at staging.9router.dev
+  MEMORY_SUGGEST: core tests run via make test, use testify + httptest
+  USER_SUGGEST: prefers bullet-point responses, no filler, no emojis
+  USER_SUGGEST: hates when code examples omit error handling
+  USER_SUGGEST: wants ≤2 sentence explanation before code blocks
+
+#### Bad examples (events, vague, filler — DO NOT store)
+  MEMORY_SUGGEST: User asked about routing today             # event, not state
+  MEMORY_SUGGEST: User works on a Go project                 # vague — which project? what stack?
+  MEMORY_SUGGEST: User said hi                                # routine, not memorable
+  MEMORY_SUGGEST: User uses macOS                            # obvious from env context
+  USER_SUGGEST: User likes clear answers                     # generic, no actionability
+  USER_SUGGEST: User was polite today                         # event, not preference
+
+### Specificity standard
+
+Prefer concrete, precise details over labels. Ask: "Would I act differently in a future session knowing this?"
+
+| Weak (don't store) | Strong (store) |
+|---|---|
+| "Go dev" | "9router: Go monolith, chi router, GORM, MySQL" |
+| "uses testing" | "9router: tests with testify + httptest, make test" |
+| "prefers short answers" | "USER: prefers ≤2 sentence explanation before code" |
+
+When a fact applies to a **specific project**, prefix it: 9router:, core:, writings:. This prevents ambiguity.
+
+### Value gate
+
+Store only if: **"Would a future session make a measurably better decision or avoid a known mistake by knowing this?"**
+- **YES** → store
+- "Nice to have" → skip
+- "Already obvious from env context" (e.g. macOS, zsh) → skip
+
+### Quality over quantity
+
+1 high-quality marker > 5 filler markers. It is **correct** to end a session with zero markers when nothing memorable was established. Zero markers is valid when:
+- User says "thanks" or "ok"
+- Simple confirmation or acknowledgment
+- Routine chat with no new facts established
+
+### Format
+
+- Markers at **very end** of response, after all other content
+- One line per marker, MEMORY_SUGGEST: or USER_SUGGEST: prefix
+- No code fences, no markdown around markers, no extra formatting
+- Project-prefix required for project-specific facts: 9router: <fact>
+- Minimum 10 characters per marker content
+- No ?, no code blocks, no bare file paths in marker content`;
+
+  if (isFallback) {
+    return base + `
+
+The conversation established facts worth remembering. Use the store_memory tool if available, otherwise append MEMORY_SUGGEST: or USER_SUGGEST: markers at the end of your response. Call store_memory once per memorable fact.`;
   }
 
-  return `
-
----
-## MEMORY EXTRACTION
-
-Good assistants learn from every session. If the conversation established facts worth remembering across sessions, either:
-  - If tool calling is available: call the store_memory function with {"type": "MEMORY"|"USER", "content": "<the fact>"}
-  - If no tools: append MEMORY_SUGGEST: or USER_SUGGEST: markers at the end of your response
-
-Future sessions will receive this context automatically. Examples:
-  USER_SUGGEST: User prefers concise bullet-point responses, no filler text
-  MEMORY_SUGGEST: Project ~/code/api uses Go 1.22, sqlc for DB queries, chi router
-
-Skip if nothing memorable was established.`;
+  return base;
 }

@@ -236,31 +236,71 @@ export function getExtractionHint(isFallback = false) {
   const base = `
 
 ---
-## MEMORY EXTRACTION — YOU MUST FOLLOW THIS
+## Memory Extraction
 
-This is a persistent memory system. It lets you remember facts across sessions.
+Persistent memory system. Remembers facts across sessions so future conversations start with useful context.
 
-**You MUST append markers when memorable facts are established:**
-- MEMORY_SUGGEST: <fact about user's environment, project, tooling, decisions>
-- USER_SUGGEST: <fact about user's preferences, communication style>
+### What to store — state, not events
 
-Examples:
-  MEMORY_SUGGEST: User is a backend engineer working on insurance tech at PasarPolis
-  MEMORY_SUGGEST: Project core is a Go monolith using chi router, GORM, MySQL
-  USER_SUGGEST: User prefers concise bullet-point responses with no filler
+Store facts a future session would **measurably** benefit from knowing. These are *state* — architecture, tooling, preferences, decisions, established facts.
 
-**Rules:**
-- Put markers at the VERY END of your response, after all other content
-- One line per marker, no extra formatting
-- Skip only if NOTHING memorable was established (routine greeting, simple yes/no)
-- If you have facts to store, THIS is how — no other format accepted
+**Do NOT store *events*** — questions asked, commands run, topics discussed, routine interactions.
 
-**Consequence:** If you don't append markers, memory won't be saved and you'll have to re-learn everything next session.`;
+#### Good examples (state)
+  MEMORY_SUGGEST: 9router uses chi router with middleware-chaining pattern, GORM for DB, MySQL
+  MEMORY_SUGGEST: 9router PRs deploy via GitHub Actions, staging env at staging.9router.dev
+  MEMORY_SUGGEST: core tests run via make test, use testify + httptest
+  USER_SUGGEST: prefers bullet-point responses, no filler, no emojis
+  USER_SUGGEST: hates when code examples omit error handling
+  USER_SUGGEST: wants ≤2 sentence explanation before code blocks
+
+#### Bad examples (events, vague, filler — DO NOT store)
+  MEMORY_SUGGEST: User asked about routing today             # event, not state
+  MEMORY_SUGGEST: User works on a Go project                 # vague — which project? what stack?
+  MEMORY_SUGGEST: User said hi                                # routine, not memorable
+  MEMORY_SUGGEST: User uses macOS                            # obvious from env context
+  USER_SUGGEST: User likes clear answers                     # generic, no actionability
+  USER_SUGGEST: User was polite today                         # event, not preference
+
+### Specificity standard
+
+Prefer concrete, precise details over labels. Ask: "Would I act differently in a future session knowing this?"
+
+| Weak (don't store) | Strong (store) |
+|---|---|
+| "Go dev" | "9router: Go monolith, chi router, GORM, MySQL" |
+| "uses testing" | "9router: tests with testify + httptest, make test" |
+| "prefers short answers" | "USER: prefers ≤2 sentence explanation before code" |
+
+When a fact applies to a **specific project**, prefix it: 9router:, core:, writings:. This prevents ambiguity.
+
+### Value gate
+
+Store only if: **"Would a future session make a measurably better decision or avoid a known mistake by knowing this?"**
+- **YES** → store
+- "Nice to have" → skip
+- "Already obvious from env context" (e.g. macOS, zsh) → skip
+
+### Quality over quantity
+
+1 high-quality marker > 5 filler markers. It is **correct** to end a session with zero markers when nothing memorable was established. Zero markers is valid when:
+- User says "thanks" or "ok"
+- Simple confirmation or acknowledgment
+- Routine chat with no new facts established
+
+### Format
+
+- Markers at **very end** of response, after all other content
+- One line per marker, MEMORY_SUGGEST: or USER_SUGGEST: prefix
+- No code fences, no markdown around markers, no extra formatting
+- Project-prefix required for project-specific facts: 9router: <fact>
+- Minimum 10 characters per marker content
+- No ?, no code blocks, no bare file paths in marker content`;
 
   if (isFallback) {
     return base + `
 
-⛔ **IMPORTANT:** You have missed 5+ consecutive opportunities to save memory. This is a hard requirement, not optional. Always end with markers.`;
+The conversation established facts worth remembering. Use the store_memory tool if available, otherwise append MEMORY_SUGGEST: or USER_SUGGEST: markers at the end of your response. Call store_memory once per memorable fact.`;
   }
 
   return base;
