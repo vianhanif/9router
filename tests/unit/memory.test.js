@@ -380,50 +380,64 @@ import {
 } from "@/lib/memory/extract.js";
 
 describe("extract.js — parseMemorySuggestions", () => {
-  it("empty/null → no suggestions", () => {
-    expect(parseMemorySuggestions("")).toEqual({ memory: null, user: null });
-    expect(parseMemorySuggestions(null)).toEqual({ memory: null, user: null });
-    expect(parseMemorySuggestions("just normal text")).toEqual({ memory: null, user: null });
+  it("empty/null → empty arrays", () => {
+    expect(parseMemorySuggestions("")).toEqual({ memory: [], user: [] });
+    expect(parseMemorySuggestions(null)).toEqual({ memory: [], user: [] });
+    expect(parseMemorySuggestions("just normal text")).toEqual({ memory: [], user: [] });
   });
 
   it("MEMORY_SUGGEST marker → extracts memory", () => {
     const text = "Here's the answer.\nMEMORY_SUGGEST: Project uses Go 1.22";
     const { memory, user } = parseMemorySuggestions(text);
-    expect(memory).toBe("Project uses Go 1.22");
-    expect(user).toBeNull();
+    expect(memory).toEqual(["Project uses Go 1.22"]);
+    expect(user).toEqual([]);
   });
 
   it("USER_SUGGEST marker → extracts user", () => {
     const text = "Got it.\nUSER_SUGGEST: User prefers bullet points";
     const { memory, user } = parseMemorySuggestions(text);
-    expect(memory).toBeNull();
-    expect(user).toBe("User prefers bullet points");
+    expect(memory).toEqual([]);
+    expect(user).toEqual(["User prefers bullet points"]);
   });
 
   it("both markers → extracts both", () => {
     const text = "Sure.\nMEMORY_SUGGEST: Server runs on port 3000\nUSER_SUGGEST: Prefers short replies";
     const { memory, user } = parseMemorySuggestions(text);
-    expect(memory).toBe("Server runs on port 3000");
-    expect(user).toBe("Prefers short replies");
+    expect(memory).toEqual(["Server runs on port 3000"]);
+    expect(user).toEqual(["Prefers short replies"]);
+  });
+
+  it("multiple MEMORY_SUGGEST markers → extracts all", () => {
+    const text = "Info.\nMEMORY_SUGGEST: fact one\nMEMORY_SUGGEST: fact two";
+    const { memory, user } = parseMemorySuggestions(text);
+    expect(memory).toEqual(["fact one", "fact two"]);
+    expect(user).toEqual([]);
+  });
+
+  it("multiple USER_SUGGEST markers → extracts all", () => {
+    const text = "Info.\nUSER_SUGGEST: pref one\nUSER_SUGGEST: pref two";
+    const { memory, user } = parseMemorySuggestions(text);
+    expect(user).toEqual(["pref one", "pref two"]);
+    expect(memory).toEqual([]);
   });
 
   it("markers are case-insensitive", () => {
     const text = "MEMORY_suggest: fact\nuser_suggest: pref";
     const { memory, user } = parseMemorySuggestions(text);
-    expect(memory).toBe("fact");
-    expect(user).toBe("pref");
+    expect(memory).toEqual(["fact"]);
+    expect(user).toEqual(["pref"]);
   });
 
-  it("marker with no content → null", () => {
+  it("marker with no content → empty string in array", () => {
     const text = "MEMORY_SUGGEST:";
     const { memory } = parseMemorySuggestions(text);
-    expect(memory).toBe("");
+    expect(memory).toEqual([""]);
   });
 
-  it("multi-line content after marker", () => {
-    const text = "MEMORY_SUGGEST: Server runs on port 3000\nUses Express for routing";
+  it("single-line per marker (no multi-line greedy capture)", () => {
+    const text = "MEMORY_SUGGEST: first fact\nSome unrelated text\nMEMORY_SUGGEST: second fact";
     const { memory } = parseMemorySuggestions(text);
-    expect(memory).toBe("Server runs on port 3000\nUses Express for routing");
+    expect(memory).toEqual(["first fact", "second fact"]);
   });
 });
 
