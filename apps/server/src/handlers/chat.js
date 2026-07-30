@@ -22,6 +22,11 @@ import { getProjectIdForConnection } from "@9router/core/services/projectId.js";
 import { loadMemoryForRequest, tryExtractFromResponse, getExtractionHint, loadExtractionState, recordExtractionAttempt, FALLBACK_THRESHOLD, detectMemoryPool } from "../lib/memory/index.js";
 import { MEMORY_TOOL_DEFINITION, MEMORY_TOOL_NAME, parseMemoryToolCalls } from "../lib/memory/tool.js";
 
+// WeakMap keyed on body object to track whether store_memory has been injected
+// for this request. Prevents double-injection across nested combo iterations
+// without polluting the body with internal-only properties.
+const _injectedBodies = new WeakMap();
+
 /**
  * Handle chat completion request
  * Supports: OpenAI, Claude, Gemini, OpenAI Responses API formats
@@ -192,11 +197,12 @@ ${hintText}` };
       log.info("MEMORY", `Skip hint pool="${pool}" userMsgs=${userMsgCount} ≤ threshold=${settings.memoryExtractionThreshold}`);
     }
     // Inject store_memory tool if request has tools (agent-mode conversations)
-    // Guard: use a marker flag on body to ensure injection runs only once per request cycle.
-    // This prevents double-injection when combos are nested (outer combo → inner combo)
-    // where shallow copying or async timing can cause body.tools to appear unmodified.
+    // Guard: use a WeakMap keyed on body to ensure injection runs only once per
+    // request cycle. This prevents double-injection when combos are nested
+    // (outer combo → inner combo). Unlike a property on body, a WeakMap does
+    // not leak internal state into the upstream request body.
     if (body.tools && body.tools.length > 0) {
-      if (body._memoryToolInjected) {
+      if (_injectedBodies.has(body)) {
         log.info("MEMORY", `store_memory already injected pool="${pool}" skipping`);
       } else {
         const hasStoreMemory = body.tools.some(t =>
@@ -204,7 +210,7 @@ ${hintText}` };
         );
         if (!hasStoreMemory) {
           body.tools.push({ type: "function", function: MEMORY_TOOL_DEFINITION });
-          body._memoryToolInjected = true;
+          _injectedBodies.set(body, true);
           log.info("MEMORY", `Injected store_memory tool pool="${pool}" tools=${body.tools.length}`);
         } else {
           log.info("MEMORY", `store_memory already present pool="${pool}" skipping injection`);
