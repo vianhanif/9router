@@ -188,13 +188,15 @@ export async function extractAndStoreFromResponse(responseContent, pool) {
   let userSkipped = 0;
 
   // MEMORY suggestions
+  let memoryContent = existingMemory;
   for (const entry of suggestions.memory) {
     if (!isWorthStoring(entry, "MEMORY")) {
       memorySkipped++;
-    } else if (wouldBeDuplicate(existingMemory, entry)) {
+    } else if (wouldBeDuplicate(memoryContent, entry)) {
       memorySkipped++;
     } else {
-      const { content, wasTruncated } = appendEntry(existingMemory, entry, "MEMORY");
+      const { content, wasTruncated } = appendEntry(memoryContent, entry, "MEMORY");
+      memoryContent = content;
       await saveMemoryFile(pool, "MEMORY", content);
       if (!wasTruncated || content.length !== existingMemory.length) {
         memoryStored = true;
@@ -204,13 +206,15 @@ export async function extractAndStoreFromResponse(responseContent, pool) {
   }
 
   // USER suggestions
+  let userContent = existingUser;
   for (const entry of suggestions.user) {
     if (!isWorthStoring(entry, "USER")) {
       userSkipped++;
-    } else if (wouldBeDuplicate(existingUser, entry)) {
+    } else if (wouldBeDuplicate(userContent, entry)) {
       userSkipped++;
     } else {
-      const { content, wasTruncated } = appendEntry(existingUser, entry, "USER");
+      const { content, wasTruncated } = appendEntry(userContent, entry, "USER");
+      userContent = content;
       await saveMemoryFile(pool, "USER", content);
       if (!wasTruncated || content.length !== existingUser.length) {
         userStored = true;
