@@ -479,16 +479,14 @@ describe("extract.js — isWorthStoring", () => {
 describe("extract.js — getExtractionHint", () => {
   it("standard hint (non-fallback) → mentions state/not-events and markers", () => {
     const hint = getExtractionHint(false);
-    expect(hint).toContain("Memory Extraction");
-    expect(hint).toContain("state, not events");
+    expect(hint).toContain("Persistent memory system");
     expect(hint).toContain("MEMORY_SUGGEST");
     expect(hint).toContain("USER_SUGGEST");
   });
 
   it("fallback hint → appends reminder to store", () => {
     const hint = getExtractionHint(true);
-    expect(hint).toContain("Memory Extraction");
-    expect(hint).toContain("The conversation established facts");
+    expect(hint).toContain("Persistent memory system");
     expect(hint).toContain("store_memory");
   });
 

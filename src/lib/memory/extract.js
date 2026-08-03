@@ -239,74 +239,12 @@ export async function extractAndStoreFromResponse(responseContent, pool) {
  * @returns {string}
  */
 export function getExtractionHint(isFallback = false) {
-  const base = `
-
----
-## Memory Extraction
-
-Persistent memory system. Remembers facts across sessions so future conversations start with useful context.
-
-### What to store — state, not events
-
-Store facts a future session would **measurably** benefit from knowing. These are *state* — architecture, tooling, preferences, decisions, established facts.
-
-**Do NOT store *events*** — questions asked, commands run, topics discussed, routine interactions.
-
-#### Good examples (state)
-  MEMORY_SUGGEST: 9router uses chi router with middleware-chaining pattern, GORM for DB, MySQL
-  MEMORY_SUGGEST: 9router PRs deploy via GitHub Actions, staging env at staging.9router.dev
-  MEMORY_SUGGEST: core tests run via make test, use testify + httptest
-  USER_SUGGEST: prefers bullet-point responses, no filler, no emojis
-  USER_SUGGEST: hates when code examples omit error handling
-  USER_SUGGEST: wants ≤2 sentence explanation before code blocks
-
-#### Bad examples (events, vague, filler — DO NOT store)
-  MEMORY_SUGGEST: User asked about routing today             # event, not state
-  MEMORY_SUGGEST: User works on a Go project                 # vague — which project? what stack?
-  MEMORY_SUGGEST: User said hi                                # routine, not memorable
-  MEMORY_SUGGEST: User uses macOS                            # obvious from env context
-  USER_SUGGEST: User likes clear answers                     # generic, no actionability
-  USER_SUGGEST: User was polite today                         # event, not preference
-
-### Specificity standard
-
-Prefer concrete, precise details over labels. Ask: "Would I act differently in a future session knowing this?"
-
-| Weak (don't store) | Strong (store) |
-|---|---|
-| "Go dev" | "9router: Go monolith, chi router, GORM, MySQL" |
-| "uses testing" | "9router: tests with testify + httptest, make test" |
-| "prefers short answers" | "USER: prefers ≤2 sentence explanation before code" |
-
-When a fact applies to a **specific project**, prefix it: 9router:, core:, writings:. This prevents ambiguity.
-
-### Value gate
-
-Store only if: **"Would a future session make a measurably better decision or avoid a known mistake by knowing this?"**
-- **YES** → store
-- "Nice to have" → skip
-- "Already obvious from env context" (e.g. macOS, zsh) → skip
-
-### Quality over quantity
-
-1 high-quality marker > 5 filler markers. It is **correct** to end a session with zero markers when nothing memorable was established. Zero markers is valid when:
-- User says "thanks" or "ok"
-- Simple confirmation or acknowledgment
-- Routine chat with no new facts established
-
-### Format
-
-- Markers at **very end** of response, after all other content
-- One line per marker, MEMORY_SUGGEST: or USER_SUGGEST: prefix
-- No code fences, no markdown around markers, no extra formatting
-- Project-prefix required for project-specific facts: 9router: <fact>
-- Minimum 10 characters per marker content
-- No ?, no code blocks, no bare file paths in marker content`;
+  // Concise hint: compresses ~65 lines of docs into 5 lines to preserve output token budget.
+  // Still covers: state vs events, marker syntax, format rules, project-prefix convention.
+  const base = `Persistent memory system — append MEMORY_SUGGEST: or USER_SUGGEST: markers at end of response (one line each, no code fences, no markdown). Store: state, not events (architecture, tooling, decisions, preferences). Min 10 chars. Project-prefix for project-specific: 9router: <fact>. Skip: trivial, obvious, or duplicate.`;
 
   if (isFallback) {
-    return base + `
-
-The conversation established facts worth remembering. Use the store_memory tool if available, otherwise append MEMORY_SUGGEST: or USER_SUGGEST: markers at the end of your response. Call store_memory once per memorable fact.`;
+    return base + " Call store_memory tool if available.";
   }
 
   return base;
