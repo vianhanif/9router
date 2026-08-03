@@ -161,16 +161,18 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     const pool = detectMemoryPool(apiKey);
     log.info("MEMORY", `Request phase pool="${pool}" enabled=true messages=${body.messages.length}`);
     await loadMemoryForRequest(apiKey, body.messages);
-    // Inject extraction hint after threshold
+    // Inject extraction hint after threshold — only in non-agent (chat) mode.
+    // In agent mode (request has tools), the model focuses on tool execution rather than
+    // prose. Injecting the hint here causes the model to try store_memory tool calls
+    // (which we no longer inject) or output MEMORY_SUGGEST markers that look like tool
+    // invocations, breaking the agent workflow.
     const userMsgCount = body.messages.filter(m => m.role === "user").length;
-    log.info("MEMORY", `Extraction threshold check pool="${pool}" userMsgs=${userMsgCount} threshold=${settings.memoryExtractionThreshold}`);
-    if (userMsgCount > settings.memoryExtractionThreshold) {
+    const isAgentMode = body.tools && body.tools.length > 0;
+    log.info("MEMORY", `Extraction threshold check pool="${pool}" userMsgs=${userMsgCount} threshold=${settings.memoryExtractionThreshold} agentMode=${isAgentMode}`);
+    if (userMsgCount > settings.memoryExtractionThreshold && !isAgentMode) {
       const extractionState = await loadExtractionState(pool);
-      const isFallback = FALLBACK_THRESHOLD > 0
-        ? extractionState.consecutiveMisses >= FALLBACK_THRESHOLD
-        : false;
-      log.info("MEMORY", `Injection pool="${pool}" userMsgs=${userMsgCount} consecutiveMisses=${extractionState.consecutiveMisses} isFallback=${isFallback}`);
-      const hintText = getExtractionHint(isFallback);
+      log.info("MEMORY", `Injection pool="${pool}" userMsgs=${userMsgCount} consecutiveMisses=${extractionState.consecutiveMisses}`);
+      const hintText = getExtractionHint(false);
       if (hintText) {
         // Guard: skip if hint already injected (body shared across combo models)
         const alreadyHasHint = body.messages.some(m => {
@@ -187,6 +189,8 @@ ${hintText}` };
           log.info("MEMORY", `Skip hint pool="${pool}" — already present`);
         }
       }
+    } else if (isAgentMode) {
+      log.info("MEMORY", `Skip hint pool="${pool}" agentMode=true`);
     } else {
       log.info("MEMORY", `Skip hint pool="${pool}" userMsgs=${userMsgCount} ≤ threshold=${settings.memoryExtractionThreshold}`);
     }
