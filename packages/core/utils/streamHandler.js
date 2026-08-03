@@ -209,7 +209,11 @@ export function pipeWithDisconnect(providerResponse, transformStream, streamCont
     stallTimer = setTimeout(() => {
       stallTimer = null;
       dbg(tag, `STALL TIMEOUT ${stallTimeoutMs}ms | chunks=${chunkCount} | bytes=${totalBytes} | sinceLast=${Date.now() - lastChunkAt}ms`);
-      streamController.handleError?.(new Error("stream stall timeout"));
+      // Only abort — do NOT call handleError here. Calling handleError marks the
+      // controller as disconnected, which causes the abort error to be silently
+      // swallowed in pull() (graceful close path). Let the abort propagate
+      // naturally so pull() surfaces the error to the client (Warp/Claude Code
+      // can then prompt "continue" instead of stopping abruptly).
       streamController.abort?.();
     }, stallTimeoutMs);
   };

@@ -51,7 +51,7 @@ describe("Responses abort terminal synthesis", () => {
     expect(text).toContain("data: [DONE]");
   });
 
-  it("does not synthesize terminal for non-Responses streams (callback null)", async () => {
+  it("surfaces error to client for non-Responses streams (no onAbortTerminal, client still connected)", async () => {
     const upstream = new ReadableStream({
       start(controller) {
         controller.enqueue(new TextEncoder().encode("data: hi\n\n"));
@@ -65,8 +65,10 @@ describe("Responses abort terminal synthesis", () => {
       null
     );
 
-    const text = await readAll(out);
-    expect(text).not.toContain("response.failed");
-    expect(text).not.toContain("[DONE]");
+    // When client is still connected and no onAbortTerminal is provided,
+    // the error must be surfaced to the client (not silently swallowed).
+    // This ensures AI clients (Warp, Claude Code) can prompt "continue" on
+    // truncated streams instead of treating incomplete output as final.
+    await expect(readAll(out)).rejects.toThrow("socket hang up");
   });
 });
