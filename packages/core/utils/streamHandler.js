@@ -150,13 +150,20 @@ export function createDisconnectAwareStream(transformStream, streamController, o
           code === "EPIPE" ||
           code === "UND_ERR_SOCKET";
 
-        // Graceful close on network/abort, or when a structured terminal is available
-        // (Responses passthrough prefers response.failed + [DONE] over a raw transport error)
+        // Graceful close ONLY when the client already disconnected, or when a
+        // structured terminal is available (Responses passthrough prefers
+        // response.failed + [DONE] over a raw transport error).
+        //
+        // A network error / stall while the client is still connected MUST NOT
+        // look like a clean end: silently closing here made agents (Warp, Claude
+        // Code) treat the truncated stream as a completed turn and stop abruptly
+        // mid-response, forcing a manual "continue". Surface the error instead.
         try {
-          if (!wasConnected || isNetworkClose || onAbortTerminal) {
+          if (!wasConnected || onAbortTerminal) {
             emitTerminal(controller);
             controller.close();
           } else {
+            console.warn(`[STREAM] upstream error mid-stream | provider=${streamController.provider || "?"} | model=${streamController.model || "?"} | dur=${Date.now() - streamController.startTime}ms | err=${msg || error?.name || "unknown"}`);
             controller.error(error);
           }
         } catch (e) { /* already closed or cancelled */ }

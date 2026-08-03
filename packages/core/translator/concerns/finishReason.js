@@ -43,7 +43,9 @@ export function toOpenAIFinish(reason, format) {
         default: return OPENAI_FINISH.STOP;
       }
     default:
-      return reason || OPENAI_FINISH.STOP;
+      // Defensive: null/undefined/falsy reason → "stop". Some providers send
+      // empty/null stop reasons on natural completion; we must not forward undefined.
+      return reason ? reason : OPENAI_FINISH.STOP;
   }
 }
 

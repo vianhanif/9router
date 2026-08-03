@@ -30,15 +30,13 @@ function stopTextBlock(state, results) {
 }
 
 function convertFinishReason(reason) {
+  // Defensive: null/undefined/unknown → "end_turn" rather than forwarding falsy values
   switch (reason) {
-    case "stop":
-      return "end_turn";
-    case "length":
-      return "max_tokens";
+    case "stop":      return "end_turn";
+    case "length":    return "max_tokens";
     case "tool_calls":
-      return "tool_use";
-    default:
-      return "end_turn";
+    case "tool_use":  return "tool_use";
+    default:          return "end_turn";
   }
 }
 

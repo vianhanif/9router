@@ -402,9 +402,11 @@ export class KiroExecutor extends BaseExecutor {
       },
 
       flush(controller) {
-        // Emit finish chunk if not already sent
+        // Emit finish chunk if not already sent — guard against abrupt stream EOF
         if (!state.finishEmitted) {
           state.finishEmitted = true;
+          const finishReason = state.hasToolCalls ? "tool_calls" : "stop";
+          console.warn(`[Kiro] Stream EOF reached without explicit stop; synthesizing finish_reason="${finishReason}"`);
           const finishChunk = {
             id: responseId,
             object: "chat.completion.chunk",
@@ -413,7 +415,7 @@ export class KiroExecutor extends BaseExecutor {
             choices: [{
               index: 0,
               delta: {},
-              finish_reason: state.hasToolCalls ? "tool_calls" : "stop"
+              finish_reason: finishReason
             }]
           };
           controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(finishChunk)}\n\n`));
