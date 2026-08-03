@@ -58,10 +58,10 @@ export function injectMemoryIntoMessages(messages, memorySnippet) {
   };
 
   if (systemIdx >= 0) {
-    const newMessages = [...messages];
-    newMessages.splice(systemIdx + 1, 0, memoryMessage);
-    return newMessages;
+    messages.splice(systemIdx + 1, 0, memoryMessage);
+    return messages;
   }
 
-  return [memoryMessage, ...messages];
+  messages.unshift(memoryMessage);
+  return messages;
 }

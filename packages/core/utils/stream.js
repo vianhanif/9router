@@ -72,6 +72,7 @@ export function createSSEStream(options = {}) {
   let currentOpenAIResponsesEvent = null;
   let openAIResponsesTerminalSeen = false;
   let openAIResponsesDoneSent = false;
+  let providerCompleted = false;
 
   return new TransformStream({
     transform(chunk, controller) {
@@ -102,6 +103,13 @@ export function createSSEStream(options = {}) {
         if (mode === STREAM_MODE.PASSTHROUGH) {
           let output;
           let injectedUsage = false;
+
+          if (trimmed === "data: [DONE]") {
+            providerCompleted = true;
+            reqLogger?.appendConvertedChunk?.(line + "\n");
+            controller.enqueue(sharedEncoder.encode(line + "\n"));
+            continue;
+          }
 
           if (trimmed.startsWith("data:") && trimmed.slice(5).trim() !== "[DONE]") {
             try {
@@ -181,6 +189,7 @@ export function createSSEStream(options = {}) {
               }
 
               const isFinishChunk = parsed.choices?.[0]?.finish_reason;
+              if (isFinishChunk) providerCompleted = true;
               if (isFinishChunk && !hasValidUsage(parsed.usage)) {
                 const estimated = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
                 parsed.usage = filterUsageForFormat(estimated, FORMATS.OPENAI);
@@ -232,6 +241,7 @@ export function createSSEStream(options = {}) {
         // For Ollama: done=true is the final chunk with finish_reason/usage, must translate
         // For other formats: done=true is the [DONE] sentinel, skip
         if (parsed && parsed.done && targetFormat !== FORMATS.OLLAMA) {
+          providerCompleted = true;
           // Synthesize response.failed if the Responses stream never sent a terminal event
           if (keepsOpenAIResponsesFormat && !openAIResponsesTerminalSeen) {
             const failedOutput = formatIncompleteOpenAIResponsesStreamFailure();
@@ -318,6 +328,8 @@ export function createSSEStream(options = {}) {
 
             // Accumulate tool calls from translated items (translate mode)
             const translatedToolCalls = item.choices?.[0]?.delta?.tool_calls;
+            const isFinishChunk = item.type === "message_delta" || item.choices?.[0]?.finish_reason || item.type === "message_stop" || item.type === "stop";
+            if (isFinishChunk) providerCompleted = true;
             if (translatedToolCalls && Array.isArray(translatedToolCalls)) {
               for (const tc of translatedToolCalls) {
                 const idx = tc.index ?? tc._accumulatedIndex ?? Object.keys(accumulatedToolCalls).length;
@@ -341,7 +353,7 @@ export function createSSEStream(options = {}) {
             }
 
             // Inject estimated usage if finish chunk has no valid usage
-            const isFinishChunk = item.type === "message_delta" || item.choices?.[0]?.finish_reason;
+            if (isFinishChunk) providerCompleted = true;
             if (state.finishReason && isFinishChunk && !hasValidUsage(item.usage) && totalContentLength > 0) {
               const estimated = estimateUsage(body, totalContentLength, sourceFormat);
               item.usage = filterUsageForFormat(estimated, sourceFormat); // Filter + already has buffer
@@ -393,11 +405,25 @@ export function createSSEStream(options = {}) {
           // Some clients (e.g. OpenClaw) expect the OpenAI-style sentinel:
           //   data: [DONE]\n\n
           // Without it they can hang until timeout and trigger failover.
-          const doneOutput = "data: [DONE]\n\n";
-          reqLogger?.appendConvertedChunk?.(doneOutput);
-          controller.enqueue(sharedEncoder.encode(doneOutput));
+          // However, if the provider never sent a terminal chunk (finish_reason, done flag),
+          // the stream was truncated — suppress the clean [DONE] sentinel so the client
+          // sees a broken stream instead of a complete-but-empty response.
+          if (providerCompleted) {
+            const doneOutput = "data: [DONE]\n\n";
+            reqLogger?.appendConvertedChunk?.(doneOutput);
+            controller.enqueue(sharedEncoder.encode(doneOutput));
+          } else {
+            const errMsg = `stream truncated: ${provider || "?"}/${model || "?"} closed before completion (${sseEmittedCount} chunks emitted)`;
+            console.warn(`[STREAM] ${errMsg}`);
+            const errPayload = JSON.stringify({error: {message: errMsg, type: "stream_truncated"}});
+            reqLogger?.appendConvertedChunk?.(`data: ${errPayload}\n\n`);
+            controller.enqueue(sharedEncoder.encode(`data: ${errPayload}\n\n`));
+          }
 
-          if (onStreamComplete) {
+          // Only fire onStreamComplete if the stream completed normally.
+          // If truncated, memory extraction and request-detail saving would act on
+          // incomplete content — skip the callback and let the caller handle the error.
+          if (onStreamComplete && providerCompleted) {
             onStreamComplete({
               content: accumulatedContent,
               thinking: accumulatedThinking,
@@ -457,7 +483,19 @@ export function createSSEStream(options = {}) {
           openAIResponsesTerminalSeen = true;
         }
 
-        if (!keepsOpenAIResponsesFormat || !openAIResponsesDoneSent) {
+        const streamWasComplete = keepsOpenAIResponsesFormat
+          ? openAIResponsesTerminalSeen
+          : providerCompleted;
+
+        if (!streamWasComplete) {
+          // Stream was truncated (provider abort / stall before sending terminal event).
+          // Emit a structured error so the client knows the stream is broken.
+          const errMsg = `stream truncated: ${provider || "?"}/${model || "?"} closed before completion (${sseEmittedCount} chunks)`;
+          console.warn(`[STREAM] ${errMsg}`);
+          const errPayload = JSON.stringify({error: {message: errMsg, type: "stream_truncated"}});
+          reqLogger?.appendConvertedChunk?.(`data: ${errPayload}\n\n`);
+          controller.enqueue(sharedEncoder.encode(`data: ${errPayload}\n\n`));
+        } else if (!keepsOpenAIResponsesFormat || !openAIResponsesDoneSent) {
           const doneOutput = "data: [DONE]\n\n";
           reqLogger?.appendConvertedChunk?.(doneOutput);
           controller.enqueue(sharedEncoder.encode(doneOutput));
@@ -473,7 +511,8 @@ export function createSSEStream(options = {}) {
           appendRequestLog({ model, provider, connectionId, tokens: null, status: "200 OK" }).catch(() => { });
         }
         
-        if (onStreamComplete) {
+        // Only fire onStreamComplete if the stream completed normally.
+        if (onStreamComplete && (providerCompleted || keepsOpenAIResponsesFormat && openAIResponsesTerminalSeen)) {
           onStreamComplete({
             content: accumulatedContent,
             thinking: accumulatedThinking,

@@ -9,6 +9,8 @@ import { buildRequestDetail, extractRequestConfig, saveUsageStats } from "./requ
 import { saveRequestDetail } from "@9router/db";
 import { SSE_HEADERS_CORS as SSE_HEADERS } from "../../utils/sseConstants.js";
 
+const sharedEncoder = new TextEncoder();
+
 // Codex returns Responses API SSE → which client format to translate INTO, by request sourceFormat.
 // Gemini-family all map to ANTIGRAVITY decoder; unknown sources fall back to OPENAI.
 const CODEX_SOURCE_TO_TARGET = {
@@ -50,7 +52,10 @@ export function handleStreamingResponse({ providerResponse, provider, model, sou
 
   // Responses passthrough: synthesize response.failed + [DONE] if the stream aborts/stalls before a terminal event
   const isResponsesPassthrough = sourceFormat === FORMATS.OPENAI_RESPONSES && targetFormat === FORMATS.OPENAI_RESPONSES;
-  const onAbortTerminal = isResponsesPassthrough ? buildAbortedResponsesTerminalBytes : null;
+  const onAbortTerminal = isResponsesPassthrough 
+    ? buildAbortedResponsesTerminalBytes 
+    : () => sharedEncoder.encode(`data: {"error":{"message":"stream aborted mid-stream","type":"stream_error"}}\n\n`);
+
   const stallTimeoutMs = PROVIDERS[provider]?.stallTimeoutMs || STREAM_STALL_TIMEOUT_MS;
   const transformedBody = pipeWithDisconnect(providerResponse, transformStream, streamController, onAbortTerminal, stallTimeoutMs);
 
