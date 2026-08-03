@@ -14,14 +14,6 @@ export { SSE_DONE, SSE_HEADERS, SSE_HEADERS_NO_BUFFER };
 // sharedEncoder is stateless — safe to share across streams
 const sharedEncoder = new TextEncoder();
 
-// Internal memory tool name — MUST match apps/server/src/lib/memory/tool.js
-// (MEMORY_TOOL_NAME). Core cannot import from the server app, so the constant
-// is duplicated here as the protocol contract. store_memory tool calls are
-// consumed server-side and must never reach the client: AI agents (Warp,
-// Claude Code) don't have the tool registered and abort/stop when they see an
-// unknown tool call mid-stream.
-const MEMORY_TOOL_NAME = "store_memory";
-
 /**
  * Stream modes
  */
@@ -80,63 +72,6 @@ export function createSSEStream(options = {}) {
   let currentOpenAIResponsesEvent = null;
   let openAIResponsesTerminalSeen = false;
   let openAIResponsesDoneSent = false;
-
-  // Internal store_memory tool: consumed server-side via onStreamComplete, never
-  // forwarded to the client. Track which tool-call indices (OpenAI) / content
-  // block indices (Claude) belong to it so incremental deltas (which omit the
-  // name) are filtered too.
-  const isClaudeSource = sourceFormat === FORMATS.CLAUDE;
-  const memoryToolCallIndices = new Set();
-  const claudeMemoryBlockIndices = new Set();
-  let hasNonMemoryToolCall = false;
-
-  // Strip store_memory tool-call chunks from the client-bound stream.
-  // Returns true when the item is fully consumed (nothing left to emit).
-  const stripMemoryToolCalls = (item) => {
-    if (isClaudeSource) {
-      if (item.type === "content_block_start" && item.content_block?.type === "tool_use" && item.content_block?.name === MEMORY_TOOL_NAME) {
-        claudeMemoryBlockIndices.add(item.index);
-        return true;
-      }
-      if (claudeMemoryBlockIndices.has(item.index) && (item.type === "content_block_delta" || item.type === "content_block_stop")) {
-        return true;
-      }
-      if (item.type === "content_block_start" && item.content_block?.type === "tool_use") {
-        hasNonMemoryToolCall = true;
-      }
-      // Only-memory response: convert trailing tool_use stop into a clean end_turn
-      if (item.type === "message_delta" && item.delta?.stop_reason === "tool_use" && !hasNonMemoryToolCall && !accumulatedContent) {
-        item.delta.stop_reason = "end_turn";
-      }
-      return false;
-    }
-
-    const delta = item.choices?.[0]?.delta;
-    if (delta?.tool_calls && Array.isArray(delta.tool_calls) && delta.tool_calls.length > 0) {
-      const kept = [];
-      for (const tc of delta.tool_calls) {
-        const idx = tc.index ?? tc._accumulatedIndex;
-        const acc = idx !== undefined ? accumulatedToolCalls[idx] : null;
-        const isMemory = tc.function?.name === MEMORY_TOOL_NAME || acc?.function?.name === MEMORY_TOOL_NAME;
-        if (isMemory) {
-          if (idx !== undefined) memoryToolCallIndices.add(idx);
-          continue;
-        }
-        hasNonMemoryToolCall = true;
-        kept.push(tc);
-      }
-      delta.tool_calls = kept;
-      // Drop chunks left empty by the filter (only carried store_memory deltas)
-      if (!delta.content && !delta.reasoning_content && delta.tool_calls.length === 0 && !item.choices?.[0]?.finish_reason) {
-        return true;
-      }
-    }
-    // Only-memory response: convert trailing tool_calls finish into a clean stop
-    if (item.choices?.[0]?.finish_reason === "tool_calls" && !hasNonMemoryToolCall && !accumulatedContent) {
-      item.choices[0].finish_reason = "stop";
-    }
-    return false;
-  };
 
   return new TransformStream({
     transform(chunk, controller) {
@@ -238,31 +173,6 @@ export function createSSEStream(options = {}) {
                     }
                   }
                 }
-              }
-
-              // Strip internal store_memory tool calls before forwarding to client
-              if (delta?.tool_calls && Array.isArray(delta.tool_calls) && delta.tool_calls.length > 0) {
-                const kept = [];
-                for (const tc of delta.tool_calls) {
-                  const idx = tc.index;
-                  const acc = idx !== undefined ? accumulatedToolCalls[idx] : null;
-                  const isMemory = tc.function?.name === MEMORY_TOOL_NAME || acc?.function?.name === MEMORY_TOOL_NAME;
-                  if (isMemory) {
-                    if (idx !== undefined) memoryToolCallIndices.add(idx);
-                    continue;
-                  }
-                  hasNonMemoryToolCall = true;
-                  kept.push(tc);
-                }
-                delta.tool_calls = kept;
-                // Chunk only carried store_memory deltas — skip forwarding entirely
-                if (!delta.content && !delta.reasoning_content && delta.tool_calls.length === 0 && !parsed.choices?.[0]?.finish_reason) {
-                  continue;
-                }
-              }
-              // Only-memory response: convert trailing tool_calls finish into a clean stop
-              if (parsed.choices?.[0]?.finish_reason === "tool_calls" && !hasNonMemoryToolCall && !accumulatedContent) {
-                parsed.choices[0].finish_reason = "stop";
               }
 
               const extracted = extractUsage(parsed);
@@ -424,9 +334,6 @@ export function createSSEStream(options = {}) {
                 }
               }
             }
-
-            // Strip internal store_memory tool calls before forwarding to client
-            if (stripMemoryToolCalls(item)) continue;
 
             // Filter empty chunks
             if (!hasValuableContent(item, sourceFormat)) {

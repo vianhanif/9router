@@ -20,12 +20,6 @@ import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "@9router/core/services/projectId.js";
 import { loadMemoryForRequest, tryExtractFromResponse, getExtractionHint, loadExtractionState, recordExtractionAttempt, FALLBACK_THRESHOLD, detectMemoryPool } from "../lib/memory/index.js";
-import { MEMORY_TOOL_DEFINITION, MEMORY_TOOL_ANTHROPIC, MEMORY_TOOL_NAME, parseMemoryToolCalls } from "../lib/memory/tool.js";
-
-// WeakMap keyed on body object to track whether store_memory has been injected
-// for this request. Prevents double-injection across nested combo iterations
-// without polluting the body with internal-only properties.
-const _injectedBodies = new WeakMap();
 
 /**
  * Handle chat completion request
@@ -196,44 +190,6 @@ ${hintText}` };
     } else {
       log.info("MEMORY", `Skip hint pool="${pool}" userMsgs=${userMsgCount} ≤ threshold=${settings.memoryExtractionThreshold}`);
     }
-    // Inject store_memory tool if request has tools (agent-mode conversations)
-    // Guard: use a WeakMap keyed on body to ensure injection runs only once per
-    // request cycle. This prevents double-injection when combos are nested
-    // (outer combo → inner combo). Unlike a property on body, a WeakMap does
-    // not leak internal state into the upstream request body.
-    if (body.tools && body.tools.length > 0) {
-      if (_injectedBodies.has(body)) {
-        log.info("MEMORY", `store_memory already injected pool="${pool}" skipping`);
-      } else {
-        const hasStoreMemory = body.tools.some(t =>
-          t.function?.name === MEMORY_TOOL_NAME || t.name === MEMORY_TOOL_NAME
-        );
-        if (!hasStoreMemory) {
-          // Inject the tool definition in the request's own schema.
-          // Warp/Claude Code send Anthropic tools ({name, input_schema});
-          // OpenAI-compatible clients send {type:"function", function:{...}}.
-          // Pushing the wrong shape into the client body corrupts the request
-          // before translation and can make the upstream stop/error mid-turn.
-          const isAnthropicTools = body.tools.some(t => t && t.input_schema);
-          const isOpenAITools = body.tools.some(t => t && (t.function || t.type === "function"));
-
-          if (isAnthropicTools) {
-            body.tools.push(MEMORY_TOOL_ANTHROPIC);
-            _injectedBodies.set(body, true);
-            log.info("MEMORY", `Injected store_memory tool (anthropic) pool="${pool}" tools=${body.tools.length}`);
-          } else if (isOpenAITools) {
-            body.tools.push({ type: "function", function: MEMORY_TOOL_DEFINITION });
-            _injectedBodies.set(body, true);
-            log.info("MEMORY", `Injected store_memory tool (openai) pool="${pool}" tools=${body.tools.length}`);
-          } else {
-            // Unrecognized tools schema — do not corrupt the request.
-            log.info("MEMORY", `store_memory injection skipped (unrecognized tools schema) pool="${pool}"`);
-          }
-        } else {
-          log.info("MEMORY", `store_memory already present pool="${pool}" skipping injection`);
-        }
-      }
-    }
   } else {
     log.info("MEMORY", `Request phase memoryDisabled=${!settings.memoryEnabled} hasMessages=${!!body.messages}`);
   }
@@ -347,23 +303,7 @@ ${hintText}` };
           return;
         }
 
-        // 1. Handle store_memory tool calls (agent mode)
-        if (contentObj?.toolCalls?.length > 0) {
-          const memoryToolCalls = parseMemoryToolCalls(contentObj.toolCalls);
-          if (memoryToolCalls.length > 0) {
-            log.info("MEMORY", `TOOL_CALL pool="${memoryPool}" calls=${memoryToolCalls.length} entries=${JSON.stringify(memoryToolCalls)}`);
-            const { storeFromToolCalls } = await import("../lib/memory/tool.js");
-            storeFromToolCalls(memoryToolCalls, memoryPool).then(result => {
-              log.info("MEMORY", `TOOL_STORED pool="${memoryPool}" memory=${result.memoryStored} user=${result.userStored}`);
-              recordExtractionAttempt(memoryPool, { wasStored: !!(result.memoryStored || result.userStored), attempted: true, skippedCount: 0 }).catch(() => {});
-            }).catch(err => {
-              log.warn("MEMORY", `TOOL_STORE_ERROR pool="${memoryPool}" ${err.message}`);
-            });
-          }
-          return; // Don't double-process prose extraction
-        }
-
-        // 2. Handle prose extraction (chat mode) — markers in content
+        // Handle prose extraction — markers in content
         if (contentObj?.content) {
           log.info("MEMORY", `Response phase pool="${memoryPool}" responseLen=${contentObj.content.length} extracting=true`);
           tryExtractFromResponse(apiKey, contentObj.content).then(extractResult => {

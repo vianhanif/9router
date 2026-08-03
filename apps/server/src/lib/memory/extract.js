@@ -243,9 +243,5 @@ export function getExtractionHint(isFallback = false) {
   // Still covers: state vs events, marker syntax, format rules, project-prefix convention.
   const base = `Persistent memory system — append MEMORY_SUGGEST: or USER_SUGGEST: markers at end of response (one line each, no code fences, no markdown). Store: state, not events (architecture, tooling, decisions, preferences). Min 10 chars. Project-prefix for project-specific: 9router: <fact>. Skip: trivial, obvious, or duplicate.`;
 
-  if (isFallback) {
-    return base + " Call store_memory tool if available.";
-  }
-
   return base;
 }
