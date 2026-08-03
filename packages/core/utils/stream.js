@@ -190,6 +190,14 @@ export function createSSEStream(options = {}) {
 
               const isFinishChunk = parsed.choices?.[0]?.finish_reason;
               if (isFinishChunk) providerCompleted = true;
+              
+              // Upgrade finish_reason if tool calls exist but reason is "stop"
+              if (isFinishChunk === "stop" && Object.keys(accumulatedToolCalls).length > 0) {
+                parsed.choices[0].finish_reason = "tool_calls";
+                output = `data: ${JSON.stringify(parsed)}\n`;
+                injectedUsage = true; // Use injected flag to trigger output replacement
+              }
+
               if (isFinishChunk && !hasValidUsage(parsed.usage)) {
                 const estimated = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
                 parsed.usage = filterUsageForFormat(estimated, FORMATS.OPENAI);
