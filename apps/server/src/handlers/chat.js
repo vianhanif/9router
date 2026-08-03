@@ -20,7 +20,7 @@ import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "@9router/core/services/projectId.js";
 import { loadMemoryForRequest, tryExtractFromResponse, getExtractionHint, loadExtractionState, recordExtractionAttempt, FALLBACK_THRESHOLD, detectMemoryPool } from "../lib/memory/index.js";
-import { MEMORY_TOOL_DEFINITION, MEMORY_TOOL_NAME, parseMemoryToolCalls } from "../lib/memory/tool.js";
+import { MEMORY_TOOL_DEFINITION, MEMORY_TOOL_ANTHROPIC, MEMORY_TOOL_NAME, parseMemoryToolCalls } from "../lib/memory/tool.js";
 
 // WeakMap keyed on body object to track whether store_memory has been injected
 // for this request. Prevents double-injection across nested combo iterations
@@ -209,9 +209,26 @@ ${hintText}` };
           t.function?.name === MEMORY_TOOL_NAME || t.name === MEMORY_TOOL_NAME
         );
         if (!hasStoreMemory) {
-          body.tools.push({ type: "function", function: MEMORY_TOOL_DEFINITION });
-          _injectedBodies.set(body, true);
-          log.info("MEMORY", `Injected store_memory tool pool="${pool}" tools=${body.tools.length}`);
+          // Inject the tool definition in the request's own schema.
+          // Warp/Claude Code send Anthropic tools ({name, input_schema});
+          // OpenAI-compatible clients send {type:"function", function:{...}}.
+          // Pushing the wrong shape into the client body corrupts the request
+          // before translation and can make the upstream stop/error mid-turn.
+          const isAnthropicTools = body.tools.some(t => t && t.input_schema);
+          const isOpenAITools = body.tools.some(t => t && (t.function || t.type === "function"));
+
+          if (isAnthropicTools) {
+            body.tools.push(MEMORY_TOOL_ANTHROPIC);
+            _injectedBodies.set(body, true);
+            log.info("MEMORY", `Injected store_memory tool (anthropic) pool="${pool}" tools=${body.tools.length}`);
+          } else if (isOpenAITools) {
+            body.tools.push({ type: "function", function: MEMORY_TOOL_DEFINITION });
+            _injectedBodies.set(body, true);
+            log.info("MEMORY", `Injected store_memory tool (openai) pool="${pool}" tools=${body.tools.length}`);
+          } else {
+            // Unrecognized tools schema — do not corrupt the request.
+            log.info("MEMORY", `store_memory injection skipped (unrecognized tools schema) pool="${pool}"`);
+          }
         } else {
           log.info("MEMORY", `store_memory already present pool="${pool}" skipping injection`);
         }
