@@ -38,12 +38,17 @@ export async function POST(request) {
     // First-time setup: no current hash exists, so the only valid current
     // password is the default (or none). Same semantics as the settings PATCH
     // first-time branch.
-    if (currentPassword && currentPassword !== "123456") {
+    const initialPassword = process.env.INITIAL_PASSWORD || "123456";
+    if (currentPassword && currentPassword !== initialPassword) {
       const { remainingBeforeLock } = recordFail(ip);
       return NextResponse.json(
         { error: `Invalid current password. ${remainingBeforeLock} attempt(s) left before lockout.` },
         { status: 401 }
       );
+    }
+
+    if (typeof newPassword !== "string" || newPassword.length < 6) {
+      return NextResponse.json({ error: "New password must be at least 6 characters" }, { status: 400 });
     }
 
     const salt = await bcrypt.genSalt(10);

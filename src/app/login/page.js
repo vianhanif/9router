@@ -63,6 +63,14 @@ export default function LoginPage() {
     checkAuth();
   }, []);
 
+  const parseJson = async (res) => {
+    try {
+      return await res.json();
+    } catch {
+      return {};
+    }
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -76,7 +84,7 @@ export default function LoginPage() {
         body: JSON.stringify({ password }),
       });
 
-      const data = await res.json();
+      const data = await parseJson(res);
       if (data.mustChangePassword) {
         setMustChange(true);
         return;
@@ -109,7 +117,7 @@ export default function LoginPage() {
       if (res.ok) {
         window.location.assign("/dashboard");
       } else {
-        const data = await res.json();
+        const data = await parseJson(res);
         setError(data.error || "Failed to set password");
       }
     } catch (err) {
