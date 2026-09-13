@@ -94,3 +94,4 @@ apps/
 
 # Kiro local workspace state
 .kiro/
+9router-*
