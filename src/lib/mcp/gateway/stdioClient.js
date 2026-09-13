@@ -8,7 +8,9 @@ import { isRecord } from "./guards";
 const STDIO_KEY = "__9routerGatewayStdio";
 const STDIO_PROTOCOL_VERSION = "2025-06-18";
 const STDIO_TIMEOUT_MS = 60_000;
-const STDIO_INIT_TIMEOUT_MS = 10_000;
+// npx cold-start (package download/install) routinely exceeds 10s on a
+// fresh container; 60s matches the general request timeout.
+const STDIO_INIT_TIMEOUT_MS = 60_000;
 const MAX_SPAWN_ATTEMPTS = 3;
 const SPAWN_BACKOFF_BASE_MS = 200;
 
@@ -78,6 +80,7 @@ class StdioEntry {
             maxAttempts: MAX_SPAWN_ATTEMPTS,
             baseDelayMs: SPAWN_BACKOFF_BASE_MS,
             isTransient: (err) => {
+              if (err?.transient) return true;
               const code = err?.code || err?.cause?.code || "";
               if (code === "ENOENT" || code === "EACCES") return false;
               return true;
@@ -131,6 +134,9 @@ class StdioEntry {
         resolve();
       });
     });
+    // fresh promise per spawn — a stale rejected initializing from a
+    // previous process must not block the retried spawn in ensure().
+    ready.catch(() => {});
     this.initializing = ready;
 
     proc.stdout.on("data", (chunk) => this.onData(chunk));
@@ -140,7 +146,16 @@ class StdioEntry {
     });
     proc.on("exit", (code, signal) => {
       this.proc = null;
+      // Mark transient so a cold-start/connectivity blip triggers a bounded
+      // respawn in retryWithBackoff instead of failing tools/list hard.
       const err = new Error(`upstream ${this.instance.slug} exited (code=${code}, signal=${signal})`);
+      err.transient = true;
+      // A respawn is imminent (ensure() retries); clear stale init state now
+      // so the next spawn() starts clean. Spawn() itself also resets these
+      // fields — this is belt-and-suspenders for the exit path.
+      this.initialized = false;
+      this.initPromise = null;
+      this.initInfo = null;
       for (const { reject, timer } of this.pending.values()) {
         clearTimeout(timer);
         reject(err);
@@ -220,11 +235,16 @@ class StdioEntry {
 
     this.initPromise = (async () => {
       try {
+        // skipRetry: retrying initialize against the SAME live process writes a
+        // second initialize frame, which most MCP servers treat as a protocol
+        // violation and exit(1) — the exact failure seen in production. A
+        // timed-out init must instead kill the child so the next caller gets a
+        // fresh spawn (guaranteed by spawn() resetting init state).
         const init = await this.request("initialize", {
           protocolVersion: STDIO_PROTOCOL_VERSION,
           capabilities: {},
           clientInfo: { name: "9router-gateway", version: "1" },
-        }, { timeoutMs: STDIO_INIT_TIMEOUT_MS });
+        }, { timeoutMs: STDIO_INIT_TIMEOUT_MS, skipRetry: true });
         if (init.error) {
           throw new Error(`initialize failed: ${init.error.message || JSON.stringify(init.error)}`);
         }
@@ -241,6 +261,14 @@ class StdioEntry {
         this.initialized = false;
         this.initPromise = null;
         this.initInfo = null;
+        // Do not leave a half-initialized child around: the next caller would
+        // reuse it and send a second initialize (protocol violation).
+        try {
+          if (this.proc && !this.proc.killed && this.proc.exitCode === null) {
+            this.proc.kill();
+          }
+        } catch { /* ignore */ }
+        this.proc = null;
         getStore().delete(this.instance.id);
         throw e;
       }
