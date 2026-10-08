@@ -306,7 +306,7 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
       
       // Success (2xx) - return response
       if (result.ok) {
-        log.info("COMBO", `Model ${modelStr} succeeded`);
+        log.info("COMBO", `Model ${modelStr} succeeded · ATTEMPT ${i + 1}/${rotatedModels.length}`);
         return result;
       }
 

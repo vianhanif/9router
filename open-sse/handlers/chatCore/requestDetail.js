@@ -83,7 +83,7 @@ export function buildRequestDetail(base, overrides = {}) {
 }
 
 // Build the "done" summary: duration, ttft, in/out tokens with cache breakdown
-export function formatDoneLine({ usage, latency }) {
+export function formatDoneLine({ usage, latency, tools }) {
   const u = usage || {};
   const inTok = u.prompt_tokens ?? u.input_tokens ?? 0;
   const outTok = u.completion_tokens ?? u.output_tokens ?? 0;
@@ -95,9 +95,15 @@ export function formatDoneLine({ usage, latency }) {
     if (cacheRead) parts.push(`↻${cacheRead}`);
     if (cacheCreate) parts.push(`+${cacheCreate}`);
     inStr += ` (CACHE ${parts.join(" ")})`;
+    if (cacheRead) {
+      const canonical = canonicalizeUsage(u);
+      const denom = canonical?.prompt_tokens || inTok;
+      if (denom > 0) inStr += ` ${((cacheRead / denom) * 100).toFixed(1)}% reused`;
+    }
   }
+  const toolStr = tools ? ` · ${tools} TOOL` : "";
   const ttftStr = latency?.ttft ? ` · TTFT ${latency.ttft}ms` : "";
-  return `DONE ${latency?.total ?? 0}ms${ttftStr} · ${inStr} · OUT ${outTok}`;
+  return `DONE ${latency?.total ?? 0}ms${ttftStr} · ${inStr}${toolStr} · OUT ${outTok}`;
 }
 
 export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, endpoint, label = "USAGE", silent = false }) {
