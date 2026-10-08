@@ -95,7 +95,11 @@ export function formatDoneLine({ usage, latency, tools }) {
     if (cacheRead) parts.push(`↻${cacheRead}`);
     if (cacheCreate) parts.push(`+${cacheCreate}`);
     inStr += ` (CACHE ${parts.join(" ")})`;
-    if (cacheRead && inTok > 0) inStr += ` ${((cacheRead / inTok) * 100).toFixed(1)}% reused`;
+    if (cacheRead) {
+      const canonical = canonicalizeUsage(u);
+      const denom = canonical?.prompt_tokens || inTok;
+      if (denom > 0) inStr += ` ${((cacheRead / denom) * 100).toFixed(1)}% reused`;
+    }
   }
   const toolStr = tools ? ` · ${tools} TOOL` : "";
   const ttftStr = latency?.ttft ? ` · TTFT ${latency.ttft}ms` : "";
