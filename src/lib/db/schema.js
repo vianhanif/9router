@@ -1,4 +1,12 @@
-// Latest schema version — bumped when a migration is added in ./migrations/
+// ⚠️ AGENT/DEV: Bump this by +1 EVERY TIME you change the schema below
+// (add/remove/alter a table, column, or index in TABLES). It drives the
+// pre-change safety backup in migrate.js: when the stored version is lower,
+// one lightweight DB backup is taken before applying schema changes. Forgetting
+// to bump only skips that backup — it does NOT break the additive auto-sync.
+//
+// Held at 3 after merging upstream v0.5.99: our 002/003 MCP migrations need it,
+// and prod already has a stored version of 3. Upstream's key-access columns
+// (apiKeys.accessRestricted/accessAllow) are additive and auto-sync without a bump.
 export const SCHEMA_VERSION = 3;
 
 export const PRAGMA_SQL = `
@@ -79,6 +87,10 @@ export const TABLES = {
       machineId: "TEXT",
       isActive: "INTEGER DEFAULT 1",
       createdAt: "TEXT NOT NULL",
+      // Per-key access control. Additive columns, picked up by
+      // syncSchemaFromTables() on boot; existing rows read as unrestricted (0).
+      accessRestricted: "INTEGER DEFAULT 0",
+      accessAllow: "TEXT",
     },
     indexes: ["CREATE INDEX IF NOT EXISTS idx_ak_key ON apiKeys(key)"],
   },

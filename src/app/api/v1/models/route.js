@@ -8,6 +8,7 @@ import {
 } from "@/shared/constants/providers";
 import { getProviderConnections, getCombos, getCustomModels, getModelAliases } from "@/lib/localDb";
 import { getDisabledModels } from "@/lib/disabledModelsDb";
+import { getKeyAccessContext, filterModelsListForKey } from "@/sse/services/keyAccess.js";
 import { resolveKiroModels } from "open-sse/services/kiroModels.js";
 import { resolveKimchiModels } from "open-sse/services/kimchiModels.js";
 import { resolveQoderModels, routableQoderModels } from "open-sse/services/qoderModels.js";
@@ -705,7 +706,7 @@ export function filterModels(models, filters = {}) {
 export async function GET(request) {
   try {
     const skipDynamicFetch = request?.headers?.get(INTERNAL_MODELS_FETCH_HEADER) === "1";
-    const searchParams = request?.nextUrl?.searchParams;
+const searchParams = request?.nextUrl?.searchParams;
 
     const filters = {
       capabilities: [],
@@ -774,11 +775,19 @@ export async function GET(request) {
                        filters.kind !== null || filters.q !== null || filters.limit !== null;
 
     const data = await buildModelsList([LLM_KIND], { skipDynamicFetch });
-    // Filters are opt-in: with no filter param the list above is returned
+    // Per-key access control: the presented key may be restricted to a granted
+    // subset of models/combos (upstream d8c585fb). Applied before query filters
+    // so a restricted key can never observe a model it isn't granted, even if
+    // it matches ?q=.
+    const accessible = await filterModelsListForKey(
+      await getKeyAccessContext(request),
+      data
+    );
+    // Filters are opt-in: with no filter param the accessible list is returned
     // untouched, so existing /v1/models clients stay byte-compatible.
-    let filtered = data;
+    let filtered = accessible;
     if (hasFilters) {
-      filtered = filterModels(data, filters);
+      filtered = filterModels(accessible, filters);
       if (filters.limit !== null) filtered = filtered.slice(0, filters.limit);
     }
 
