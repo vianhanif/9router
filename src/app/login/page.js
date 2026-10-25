@@ -63,14 +63,6 @@ export default function LoginPage() {
     checkAuth();
   }, []);
 
-  const parseJson = async (res) => {
-    try {
-      return await res.json();
-    } catch {
-      return {};
-    }
-  };
-
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -84,14 +76,15 @@ export default function LoginPage() {
         body: JSON.stringify({ password }),
       });
 
-      const data = await parseJson(res);
-      if (data.mustChangePassword) {
-        setMustChange(true);
-        return;
-      }
       if (res.ok) {
+        const data = await res.json();
+        if (data.mustChangePassword) {
+          setMustChange(true);
+          return;
+        }
         window.location.assign("/dashboard");
       } else {
+        const data = await res.json();
         setError(data.error || "Invalid password");
         if (data.resetHint) setResetHint(data.resetHint);
         if (data.retryAfter) setRetryAfter(Number(data.retryAfter));
@@ -109,15 +102,15 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/auth/set-password", {
-        method: "POST",
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ currentPassword: password, newPassword }),
       });
       if (res.ok) {
         window.location.assign("/dashboard");
       } else {
-        const data = await parseJson(res);
+        const data = await res.json();
         setError(data.error || "Failed to set password");
       }
     } catch (err) {
